@@ -15,6 +15,7 @@ SKILL_DIR = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(SKILL_DIR))
 
 from analysis.analyze import StockAnalyzer
+from watchlist_utils import load_watchlist
 
 
 def generate_predictions(date_str: str, watchlist: list) -> dict:
@@ -110,10 +111,12 @@ def main():
     parser = argparse.ArgumentParser(description='Generate stock predictions')
     parser.add_argument('--date', default=datetime.now().strftime('%Y-%m-%d'))
     parser.add_argument('--output', '-o', help='Output JSON file path')
-    parser.add_argument('symbols', nargs='*', default=['BABA.US', 'NVDA.US', 'TSLA.US', 'CEG.US', 'COIN.US', 'PLTR.US'])
+    parser.add_argument('symbols', nargs='*', default=None)
     args = parser.parse_args()
     
-    result = generate_predictions(args.date, args.symbols)
+    symbols = args.symbols if args.symbols else load_watchlist()
+    
+    result = generate_predictions(args.date, symbols)
     
     output = json.dumps(result, indent=2)
     

@@ -15,6 +15,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from watchlist_utils import load_watchlist
+
 from analysis.engine import (
     StockData, 
     StockAnalysisEngine,
@@ -319,8 +322,383 @@ class LongbridgeDataFetcher:
             return {}
     
     @staticmethod
+    def fetch_financials(symbol: str, cache: Optional[DataCache] = None) -> Dict:
+        """Fetch financial statements (IS, BS, CF) from longbridge financial-report.
+
+        Fetches both quarterly (qf) and annual (af) data:
+        - qf: used for balance sheet snapshots, quarterly growth rates
+        - af: used for TTM/annualized income and cash flow (no missing quarters)
+
+        Returns:
+            {
+                'is_data': {'revenue': ..., 'net_income': ..., 'eps': ..., 'operating_income': ...},
+                'bs_data': {'total_assets': ..., 'total_liabilities': ..., 'cash': ..., 'net_debt': ...},
+                'cf_data': {'operating_cf': ..., 'free_cash_flow': ..., 'capex': ...},
+                'growth': {'revenue_growth': ..., 'eps_growth': ...},
+                'ttm_data': {'revenue': ..., 'net_income': ..., 'eps': ..., 'free_cash_flow': ...},
+                'latest_period': 'Q1 2026',
+            }
+        """
+        if cache:
+            cached = cache.get('financials', symbol)
+            if cached:
+                try:
+                    return json.loads(cached)
+                except json.JSONDecodeError:
+                    pass
+
+        def _fetch_raw(report_type: str) -> Optional[Dict]:
+            output = LongbridgeDataFetcher.run_command([
+                'longbridge', 'financial-report', symbol,
+                '--kind', 'ALL', '--report', report_type, '--format', 'json'
+            ])
+            if not output or not output.strip():
+                return None
+            lines = output.strip().split('\n')
+            json_lines = [l for l in lines if not l.startswith('New version')]
+            try:
+                return json.loads('\n'.join(json_lines))
+            except json.JSONDecodeError:
+                return None
+
+        raw_qf = _fetch_raw('qf')
+        raw_af = _fetch_raw('af')
+
+        if not raw_qf and not raw_af:
+            return {}
+
+        result = LongbridgeDataFetcher._extract_financial_data(raw_qf, raw_af)
+
+        # Run data quality validation before returning
+        result['data_quality'] = LongbridgeDataFetcher._validate_financial_data(
+            result, raw_qf, raw_af
+        )
+
+        if cache and result:
+            cache.set('financials', symbol, json.dumps(result))
+
+        return result
+
+    @staticmethod
+    def _get_latest_value(accounts: List[Dict], field: str, period_offset: int = 0) -> Optional[float]:
+        """Extract the latest value for a given field from accounts list.
+
+        Args:
+            accounts: List of account dicts with 'field' and 'values' keys
+            field: The field name to extract
+            period_offset: 0 = latest period, 1 = 1 period back, etc.
+
+        Returns:
+            Float value or None if not found
+        """
+        for acct in accounts:
+            if acct.get('field') == field:
+                values = acct.get('values', [])
+                if values and period_offset < len(values):
+                    val = values[period_offset].get('value', '')
+                    if val and val.strip() and val != 'None':
+                        try:
+                            return float(val)
+                        except (ValueError, TypeError):
+                            pass
+        return None
+
+    @staticmethod
+    def _get_yoy_growth(accounts: List[Dict], field: str) -> Optional[float]:
+        """Calculate year-over-year growth for a field.
+        Assumes quarterly data where period_offset=0 is latest quarter
+        and period_offset=4 is same quarter last year (4 quarters back).
+
+        Returns growth as decimal (0.15 = 15% growth), or None if not computable.
+        """
+        latest = LongbridgeDataFetcher._get_latest_value(accounts, field, 0)
+        yoy = LongbridgeDataFetcher._get_latest_value(accounts, field, 4)
+        if latest and yoy and yoy != 0:
+            return (latest - yoy) / abs(yoy) if yoy > 0 else None
+        return None
+
+    @staticmethod
+    def _get_ttm_sum(accounts: List[Dict], field: str) -> Optional[float]:
+        """Sum last 4 quarters of a field to get trailing twelve months (TTM).
+
+        For balance sheet fields (snapshots at period end), use the latest single value.
+        For income/cash flow fields, sum the last 4 quarterly values.
+        """
+        total = 0.0
+        has_data = False
+        for offset in range(4):
+            val = LongbridgeDataFetcher._get_latest_value(accounts, field, offset)
+            if val is not None:
+                total += val
+                has_data = True
+        return total if has_data else None
+
+    @staticmethod
+    def _extract_financial_data(raw_qf: Optional[Dict], raw_af: Optional[Dict] = None) -> Dict:
+        """Parse financial-report JSON into structured financial data.
+
+        Args:
+            raw_qf: Quarterly financial data (for BS snapshots, quarterly metrics, growth)
+            raw_af: Annual financial data (for TTM values — no missing quarters)
+        """
+        def _get_accounts(raw: Dict, stype: str) -> List[Dict]:
+            items = raw.get('list', {}).get(stype, {})
+            accts = []
+            for ind in items.get('indicators', []):
+                accts.extend(ind.get('accounts', []))
+            return accts
+
+        # Use qf for quarterly data and balance sheet; af for annualized TTM
+        raw_main = raw_qf or raw_af or {}
+
+        # --- Income Statement (qf for quarterly snapshot, af for TTM) ---
+        is_accounts_qf = _get_accounts(raw_main, 'IS') if raw_qf else []
+        is_accounts_af = _get_accounts(raw_af, 'IS') if raw_af else []
+
+        latest_period = ''
+        if is_accounts_qf:
+            first_vals = is_accounts_qf[0].get('values', []) if is_accounts_qf else []
+            if first_vals:
+                latest_period = first_vals[0].get('period', '')
+
+        revenue = LongbridgeDataFetcher._get_latest_value(is_accounts_qf, 'OperatingRevenue')
+        net_income = LongbridgeDataFetcher._get_latest_value(is_accounts_qf, 'NetProfit')
+        eps = LongbridgeDataFetcher._get_latest_value(is_accounts_qf, 'EPS')
+        operating_income = LongbridgeDataFetcher._get_latest_value(is_accounts_qf, 'OperatingIncome')
+        gross_margin = LongbridgeDataFetcher._get_latest_value(is_accounts_qf, 'GrossMgn')
+        net_margin = LongbridgeDataFetcher._get_latest_value(is_accounts_qf, 'NetProfitMargin')
+        roe = LongbridgeDataFetcher._get_latest_value(is_accounts_qf, 'ROE')
+
+        is_data = {
+            'revenue': revenue,
+            'net_income': net_income,
+            'eps': eps,
+            'operating_income': operating_income,
+            'gross_margin': gross_margin,
+            'net_margin': net_margin,
+            'roe': roe,
+        }
+
+        # --- Balance Sheet (qf — point-in-time snapshot) ---
+        bs_accounts = _get_accounts(raw_main, 'BS') if raw_qf else _get_accounts(raw_af or {}, 'BS')
+
+        total_assets = LongbridgeDataFetcher._get_latest_value(bs_accounts, 'TotalAssets')
+        total_liabilities = LongbridgeDataFetcher._get_latest_value(bs_accounts, 'TotalLiability')
+        cash_st_invest = LongbridgeDataFetcher._get_latest_value(bs_accounts, 'CashSTInvest')
+        net_debt = LongbridgeDataFetcher._get_latest_value(bs_accounts, 'NetDebt')
+        bps = LongbridgeDataFetcher._get_latest_value(bs_accounts, 'BPS')
+
+        shareholders_equity = None
+        if total_assets and total_liabilities:
+            shareholders_equity = total_assets - total_liabilities
+
+        bs_data = {
+            'total_assets': total_assets,
+            'total_liabilities': total_liabilities,
+            'shareholders_equity': shareholders_equity,
+            'cash': cash_st_invest,
+            'net_debt': net_debt,
+            'book_value_per_share': bps,
+        }
+
+        # --- Cash Flow (qf for latest quarter; af for TTM) ---
+        cf_accounts_qf = _get_accounts(raw_main, 'CF') if raw_qf else []
+        cf_accounts_af = _get_accounts(raw_af, 'CF') if raw_af else []
+
+        operating_cf = LongbridgeDataFetcher._get_latest_value(cf_accounts_qf, 'NetOperateCashFlow')
+        free_cash_flow = LongbridgeDataFetcher._get_latest_value(cf_accounts_qf, 'NetFreeCashFlow')
+        capex = LongbridgeDataFetcher._get_latest_value(cf_accounts_qf, 'CapEx')
+
+        if free_cash_flow is None and operating_cf is not None and capex is not None:
+            free_cash_flow = operating_cf + capex
+
+        cf_data = {
+            'operating_cash_flow': operating_cf,
+            'free_cash_flow': free_cash_flow,
+            'capex': capex,
+        }
+
+        # --- Growth (YoY from qf) ---
+        revenue_growth = LongbridgeDataFetcher._get_yoy_growth(is_accounts_qf, 'OperatingRevenue')
+        eps_growth = LongbridgeDataFetcher._get_yoy_growth(is_accounts_qf, 'EPS')
+
+        growth = {
+            'revenue_growth': revenue_growth,
+            'eps_growth': eps_growth,
+        }
+
+        # --- Trailing Twelve Months (TTM) ---
+        # Use annual (af) data when available — no missing quarters.
+        # Fall back to summing 4 quarters from qf.
+        if raw_af and is_accounts_af:
+            ttm_revenue = LongbridgeDataFetcher._get_latest_value(is_accounts_af, 'OperatingRevenue')
+            ttm_net_income = LongbridgeDataFetcher._get_latest_value(is_accounts_af, 'NetProfit')
+            ttm_eps = LongbridgeDataFetcher._get_latest_value(is_accounts_af, 'EPS')
+            ttm_fcf = LongbridgeDataFetcher._get_latest_value(cf_accounts_af, 'NetFreeCashFlow')
+            if ttm_fcf is None:
+                ttm_ocf = LongbridgeDataFetcher._get_latest_value(cf_accounts_af, 'NetOperateCashFlow')
+                ttm_capex = LongbridgeDataFetcher._get_latest_value(cf_accounts_af, 'CapEx')
+                if ttm_ocf is not None and ttm_capex is not None:
+                    ttm_fcf = ttm_ocf + ttm_capex
+        else:
+            ttm_revenue = LongbridgeDataFetcher._get_ttm_sum(is_accounts_qf, 'OperatingRevenue')
+            ttm_net_income = LongbridgeDataFetcher._get_ttm_sum(is_accounts_qf, 'NetProfit')
+            ttm_eps = LongbridgeDataFetcher._get_ttm_sum(is_accounts_qf, 'EPS')
+            ttm_fcf = LongbridgeDataFetcher._get_ttm_sum(cf_accounts_qf, 'NetFreeCashFlow')
+            if ttm_fcf is None:
+                ttm_ocf = LongbridgeDataFetcher._get_ttm_sum(cf_accounts_qf, 'NetOperateCashFlow')
+                ttm_capex = LongbridgeDataFetcher._get_ttm_sum(cf_accounts_qf, 'CapEx')
+                if ttm_ocf is not None and ttm_capex is not None:
+                    ttm_fcf = ttm_ocf + ttm_capex
+
+        ttm_data = {
+            'revenue': ttm_revenue,
+            'net_income': ttm_net_income,
+            'eps': ttm_eps,
+            'free_cash_flow': ttm_fcf,
+        }
+
+        return {
+            'is_data': is_data,
+            'bs_data': bs_data,
+            'cf_data': cf_data,
+            'growth': growth,
+            'ttm_data': ttm_data,
+            'latest_period': latest_period,
+        }
+
+    @staticmethod
+    def _validate_financial_data(result: Dict, raw_qf: Optional[Dict] = None, raw_af: Optional[Dict] = None) -> Dict:
+        """Validate financial data quality, flag anomalies for downstream consumers.
+
+        Two severity levels:
+        - 'error': genuine data problem (missing fields, corrupted balance sheet)
+                  — causes recommendation downgrade
+        - 'warn': informational (FCF quarterly/annual mismatch)
+                  — shown in output but does NOT block buy signals
+
+        Checks performed:
+        1. TTM completeness — are key fields populated?
+        2. EPS availability — usable EPS?
+        3. Balance sheet equation — Assets ≈ Liabilities + Equity?
+        4. (warn) FCF cross-check — quarterly sum vs annual (natural difference, not blocking)
+        5. (warn) Anomalous QoQ swings >500%
+        6. (warn) Revenue vs income sign sanity
+
+        Returns:
+            {'is_clean': bool, 'warnings': [str], 'checks': {name: {'passed': bool, 'severity': str, 'detail': str}}}
+        """
+        warnings = []
+        checks = {}
+        has_error = False
+
+        ttm = result.get('ttm_data', {})
+        is_data = result.get('is_data', {})
+        bs_data = result.get('bs_data', {})
+        cf_data = result.get('cf_data', {})
+
+        # --- ERROR: TTM completeness ---
+        ttm_fields_with_data = sum(1 for f in ('revenue', 'net_income', 'eps', 'free_cash_flow')
+                                   if ttm.get(f) is not None)
+        checks['ttm_fields_populated'] = {
+            'passed': ttm_fields_with_data >= 3,
+            'severity': 'error',
+            'detail': f'{ttm_fields_with_data}/4 TTM fields have values',
+        }
+        if ttm_fields_with_data < 3:
+            has_error = True
+            warnings.append(f'Low data quality: only {ttm_fields_with_data}/4 TTM fields available')
+
+        # --- ERROR: EPS availability ---
+        eps = ttm.get('eps') or is_data.get('eps')
+        checks['eps_available'] = {
+            'passed': eps is not None,
+            'severity': 'error',
+            'detail': f'EPS={"not available" if eps is None else f"available ({eps:.2f})"}',
+        }
+        if eps is None:
+            has_error = True
+            warnings.append('EPS not available from financial statements')
+
+        # --- ERROR: Balance sheet equation ---
+        total_assets = bs_data.get('total_assets')
+        total_liabilities = bs_data.get('total_liabilities')
+        equity = bs_data.get('shareholders_equity')
+        if total_assets and total_liabilities is not None and equity is not None:
+            expected = total_liabilities + equity
+            if total_assets > 0:
+                bs_diff = abs(expected - total_assets) / total_assets * 100
+                checks['balance_sheet'] = {
+                    'passed': bs_diff < 5,
+                    'severity': 'error',
+                    'detail': f'A=${total_assets:,.0f} ≈ L+E=${expected:,.0f} (diff={bs_diff:.2f}%)',
+                }
+                if bs_diff >= 5:
+                    has_error = True
+                    warnings.append(f'Balance sheet off by {bs_diff:.1f}%')
+        else:
+            checks['balance_sheet'] = {
+                'passed': True,
+                'severity': 'error',
+                'detail': 'Insufficient balance sheet data to check',
+            }
+
+        # --- WARN: FCF cross-check (informational — quarterly/annual cycles differ naturally) ---
+        if raw_af and raw_qf:
+            cf_af = []
+            for ind in raw_af.get('list', {}).get('CF', {}).get('indicators', []):
+                cf_af.extend(ind.get('accounts', []))
+            cf_qf = []
+            for ind in raw_qf.get('list', {}).get('CF', {}).get('indicators', []):
+                cf_qf.extend(ind.get('accounts', []))
+
+            annual_fcf = LongbridgeDataFetcher._get_latest_value(cf_af, 'NetFreeCashFlow')
+            sum_qf = LongbridgeDataFetcher._get_ttm_sum(cf_qf, 'NetFreeCashFlow')
+            if annual_fcf and sum_qf:
+                diff_pct = abs(sum_qf - annual_fcf) / abs(annual_fcf) * 100
+                checks['fcf_qf_vs_af'] = {
+                    'passed': diff_pct < 20,
+                    'severity': 'warn',
+                    'detail': f'qf-sum=${sum_qf:,.0f} vs af=${annual_fcf:,.0f} (diff={diff_pct:.1f}%)',
+                }
+                if diff_pct >= 20:
+                    warnings.append(f'FCF qf-sum (${sum_qf:,.0f}) ≠ annual (${annual_fcf:,.0f}) — using annual')
+
+        # --- WARN: Anomalous QoQ swings ---
+        if raw_qf:
+            is_qf = []
+            for ind in raw_qf.get('list', {}).get('IS', {}).get('indicators', []):
+                is_qf.extend(ind.get('accounts', []))
+            for field_name in ('OperatingRevenue', 'NetProfit', 'EPS'):
+                v0 = LongbridgeDataFetcher._get_latest_value(is_qf, field_name, 0)
+                v1 = LongbridgeDataFetcher._get_latest_value(is_qf, field_name, 1)
+                if v0 and v1 and v1 != 0:
+                    swing = abs((v0 - v1) / v1) * 100
+                    if swing > 500:
+                        checks[f'{field_name}_qoq'] = {
+                            'passed': False,
+                            'severity': 'warn',
+                            'detail': f'{field_name} QoQ swing {swing:.0f}% (${v1:.2f}→${v0:.2f})',
+                        }
+                        warnings.append(f'{field_name} QoQ {swing:.0f}% swing — verify')
+
+        # --- WARN: Revenue sign sanity ---
+        rev = ttm.get('revenue')
+        net_income = ttm.get('net_income')
+        if rev and net_income:
+            if rev < 0 and net_income > 0:
+                checks['rev_sign'] = {
+                    'passed': False,
+                    'severity': 'warn',
+                    'detail': 'Negative revenue but positive net income',
+                }
+                warnings.append('Revenue is negative — data may be corrupted')
+
+        is_clean = not has_error
+        return {'is_clean': is_clean, 'warnings': warnings, 'checks': checks}
+
+    @staticmethod
     def fetch_market_sentiment(cache: Optional[DataCache] = None) -> Dict:
-        """Fetch market sentiment"""
         if cache:
             cached = cache.get('sentiment', 'market')
             if cached:
@@ -385,8 +763,18 @@ class StockAnalyzer:
         self.fetcher = LongbridgeDataFetcher(cache_ttl=cache_ttl)
         self.fetcher.cache = self.cache
     
-    def prepare_stock_data(self, symbol: str, quote: Dict, kline_data: List[Dict], calc_index: Optional[Dict] = None) -> StockData:
-        """Prepare StockData object from fetched data"""
+    def prepare_stock_data(self, symbol: str, quote: Dict, kline_data: List[Dict],
+                           calc_index: Optional[Dict] = None,
+                           financial_data: Optional[Dict] = None) -> StockData:
+        """Prepare StockData object from fetched data.
+        
+        Args:
+            symbol: Stock symbol
+            quote: Quote data from longbridge quote
+            kline_data: Historical K-line data
+            calc_index: Calculated indices (PE, PB, market cap)
+            financial_data: Parsed financial statement data from fetch_financials()
+        """
         
         # Extract prices from K-line data
         prices = []
@@ -430,26 +818,48 @@ class StockAnalyzer:
         if not market_cap and quote.get('market_cap'):
             market_cap = float(quote['market_cap'])
         
-        # Calculate EPS from PE ratio if we have it
+        # Calculate EPS from PE ratio if we have it (fallback, replaced by financial_data if available)
         eps = None
         if pe_ratio and pe_ratio > 0 and current_price > 0:
             eps = current_price / pe_ratio
+        
+        # Use real EPS from financial statements if available (more accurate than PE-derived)
+        is_data = financial_data.get('is_data', {}) if financial_data else {}
+        bs_data = financial_data.get('bs_data', {}) if financial_data else {}
+        cf_data = financial_data.get('cf_data', {}) if financial_data else {}
+        growth_data = financial_data.get('growth', {}) if financial_data else {}
+        ttm_data = financial_data.get('ttm_data', {}) if financial_data else {}
+        
+        # TTM EPS takes priority for valuation (annualized across 4 quarters)
+        ttm_eps = ttm_data.get('eps')
+        if ttm_eps is not None:
+            eps = ttm_eps
+        elif is_data.get('eps') is not None:
+            # Single-quarter EPS fallback (less accurate for P/E)
+            eps = is_data.get('eps')
         
         # Calculate book value per share from PB ratio
         book_value_per_share = None
         if pb_ratio and pb_ratio > 0 and current_price > 0:
             book_value_per_share = current_price / pb_ratio
+        # Real BPS from balance sheet takes priority
+        real_bps = bs_data.get('book_value_per_share')
+        if real_bps is not None:
+            book_value_per_share = real_bps
         
-        # Estimate growth rate from price momentum (simplified)
+        # Estimate growth rate from price momentum (simplified fallback)
         estimated_growth = None
         if len(prices) >= 200:
             ma_200 = sum(prices[-200:]) / 200
             ma_50 = sum(prices[-50:]) / 50
             if ma_200 > 0:
-                # Return as decimal (0.05 = 5%), not percentage
                 estimated_growth = ((ma_50 / ma_200) - 1)
+        # Prefer real revenue growth over price momentum proxy
+        real_rev_growth = growth_data.get('revenue_growth')
+        if real_rev_growth is not None and real_rev_growth != 0:
+            estimated_growth = real_rev_growth
         
-        # Extract financial metrics from quote (simplified)
+        # Extract financial metrics — prefer real data from financial statements
         stock_data = StockData(
             symbol=symbol,
             prices=prices,
@@ -460,21 +870,22 @@ class StockAnalyzer:
             market_cap=market_cap,
             sector=quote.get('sector', 'Technology'),
             eps=eps,
-            revenue=float(quote.get('revenue', 0)) if quote.get('revenue') else None,
-            ebitda=float(quote.get('ebitda', 0)) if quote.get('ebitda') else None,
-            net_income=float(quote.get('net_income', 0)) if quote.get('net_income') else None,
-            shareholders_equity=float(quote.get('shareholders_equity', 0)) if quote.get('shareholders_equity') else None,
-            total_debt=float(quote.get('total_debt', 0)) if quote.get('total_debt') else None,
-            cash=float(quote.get('cash', 0)) if quote.get('cash') else None,
-            free_cash_flow=float(quote.get('free_cash_flow', 0)) if quote.get('free_cash_flow') else None,
+            revenue=ttm_data.get('revenue') or is_data.get('revenue'),
+            ebitda=None,  # Not directly available from financial-report
+            net_income=ttm_data.get('net_income') or is_data.get('net_income'),
+            shareholders_equity=bs_data.get('shareholders_equity') or float(quote.get('shareholders_equity', 0)) if quote.get('shareholders_equity') else None,
+            total_debt=bs_data.get('net_debt') or float(quote.get('total_debt', 0)) if quote.get('total_debt') else None,
+            cash=bs_data.get('cash') or float(quote.get('cash', 0)) if quote.get('cash') else None,
+            free_cash_flow=ttm_data.get('free_cash_flow') or cf_data.get('free_cash_flow'),
             dividend_per_share=float(quote.get('dividend_per_share', 0)) if quote.get('dividend_per_share') else None,
-            revenue_growth=float(quote.get('revenue_growth', 0)) if quote.get('revenue_growth') else None,
-            eps_growth=float(quote.get('eps_growth', 0)) if quote.get('eps_growth') else None,
+            revenue_growth=real_rev_growth or float(quote.get('revenue_growth', 0)) if quote.get('revenue_growth') else None,
+            eps_growth=growth_data.get('eps_growth') or float(quote.get('eps_growth', 0)) if quote.get('eps_growth') else None,
             estimated_growth=estimated_growth,
             book_value_per_share=book_value_per_share
         )
         
-        # Set price source metadata
+        # Store financial data provenance for downstream use
+        stock_data._financial_period = financial_data.get('latest_period', '') if financial_data else ''
         stock_data._price_source = price_source
         
         return stock_data
@@ -495,13 +906,16 @@ class StockAnalyzer:
         print("Fetching valuation metrics...")
         calc_index = self.fetcher.fetch_calc_index(symbol)
         
+        print("Fetching financial statements...")
+        financial_data = self.fetcher.fetch_financials(symbol)
+        
         if not kline_data:
             print(f"Warning: No historical data available for {symbol}")
             return {"error": "No data available", "symbol": symbol}
         
         # Prepare stock data
         print("Preparing stock data...")
-        stock_data = self.prepare_stock_data(symbol, quote, kline_data, calc_index)
+        stock_data = self.prepare_stock_data(symbol, quote, kline_data, calc_index, financial_data)
         
         # Fetch market sentiment for context
         market_context = {}
@@ -532,6 +946,18 @@ class StockAnalyzer:
             '52_week_low': quote.get('week_52_low') or quote.get('low_52_week'),
             'calc_index': calc_index  # PE, PB, market cap from calc-index
         }
+        
+        # Add financial statement data
+        if financial_data:
+            analysis['financial_data'] = {
+                'latest_period': financial_data.get('latest_period', ''),
+                'is_data': financial_data.get('is_data', {}),
+                'bs_data': financial_data.get('bs_data', {}),
+                'cf_data': financial_data.get('cf_data', {}),
+                'growth': financial_data.get('growth', {}),
+                'ttm_data': financial_data.get('ttm_data', {}),
+                'data_quality': financial_data.get('data_quality', {}),
+            }
         
         # Ensure current_price uses live quote, not stale kline close
         live_price = quote.get('last') or quote.get('last_done')
@@ -918,8 +1344,8 @@ def main():
             report = analyzer.engine.generate_report(analysis, format='markdown')
     
     elif args.watchlist:
-        # Analyze default watchlist
-        watchlist = ['BABA.US', 'NVDA.US', 'TSLA.US', 'CEG.US', 'COIN.US', 'PLTR.US']
+        # Analyze default watchlist from references/watchlist.json
+        watchlist = load_watchlist()
         report = analyzer.generate_watchlist_report(watchlist)
     
     elif args.symbols:

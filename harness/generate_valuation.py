@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from analysis.analyze import StockAnalyzer
+from watchlist_utils import load_watchlist
 
 
 # Load industry configuration
@@ -172,30 +173,41 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
     # ============================================================
     # FINAL: Weighted Average
     # ============================================================
-    # Adjust weights based on available data
-    weight1 = 0.40 if layer1_value != current_price else 0.50
-    weight2 = 0.35 if growth_premium > 0 else 0.30
-    weight3 = 0.25 if moat_premium > 0 else 0.20
-    
-    # Normalize weights
-    total_weight = weight1 + weight2 + weight3
-    weight1 /= total_weight
-    weight2 /= total_weight
-    weight3 /= total_weight
-    
-    core_value = (
-        layer1_value * weight1 +
-        layer2_growth_value * weight2 +
-        layer3_moat_value * weight3
-    )
-    
-    # Determine method string
-    method_parts = ['pe_percentile']
-    if growth_premium > 0:
-        method_parts.append(f'growth+{int(growth_premium*100)}%')
-    if moat_premium > 0:
-        method_parts.append(f'moat+{int(moat_premium*100)}%')
-    core_value_method = '+'.join(method_parts)
+    # CRITICAL: When PE percentile is N/A, we have no historical valuation anchor.
+    # Growth/moat premiums without a PE anchor create circular reasoning:
+    #   Layer1 = current_price → Layer2 = current_price * (1+premium)
+    #   → core_value > current_price → stock appears "undervalued" → BUY
+    # This produces false buy signals. Fall back to current_price as core value.
+    no_pe_anchor = (pe_percentile is None and layer1_value == current_price)
+
+    if no_pe_anchor:
+        core_value = current_price
+        core_value_method = 'current_price'  # No PE anchor available
+    else:
+        # Adjust weights based on available data
+        weight1 = 0.40 if layer1_value != current_price else 0.50
+        weight2 = 0.35 if growth_premium > 0 else 0.30
+        weight3 = 0.25 if moat_premium > 0 else 0.20
+
+        # Normalize weights
+        total_weight = weight1 + weight2 + weight3
+        weight1 /= total_weight
+        weight2 /= total_weight
+        weight3 /= total_weight
+
+        core_value = (
+            layer1_value * weight1 +
+            layer2_growth_value * weight2 +
+            layer3_moat_value * weight3
+        )
+
+        # Determine method string
+        method_parts = ['pe_percentile']
+        if growth_premium > 0:
+            method_parts.append(f'growth+{int(growth_premium*100)}%')
+        if moat_premium > 0:
+            method_parts.append(f'moat+{int(moat_premium*100)}%')
+        core_value_method = '+'.join(method_parts)
     
     return {
         'pe_percentile': pe_percentile,
@@ -208,6 +220,7 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
         'layer3_moat_value': round(layer3_moat_value, 2),
         'core_value': round(core_value, 2),
         'core_value_method': core_value_method,
+        'no_pe_anchor': no_pe_anchor,
         'moat_width': moat_width,
         'moat_score': moat_score,
         'thesis': premiums.get('thesis', []),
@@ -247,7 +260,11 @@ def calculate_value_deviation(current_price: float, core_value: float, pe_percen
     
     # Determine if we have strong forward-looking premiums
     has_strong_premium = growth_premium >= 0.20 or moat_premium >= 0.15
-    
+
+    # When PE percentile is N/A, we lack a valuation anchor.
+    # Growth premiums without a PE anchor are speculative — cap buy signals at HOLD.
+    no_pe_anchor = pe_percentile is None
+
     # Calculate base action from deviation
     if deviation_pct < -0.30:
         dev_status = 'deep_discount'
@@ -305,9 +322,15 @@ def calculate_value_deviation(current_price: float, core_value: float, pe_percen
                 status = 'significant_premium'
                 action = 'AVOID'
     else:
-        # No PE data, use deviation-based logic
-        status = dev_status
-        action = dev_action
+        # No PE data — no valuation anchor. Cap buy signals at HOLD.
+        # Growth premiums without a PE anchor are speculative;
+        # we can identify overvaluation but cannot confirm undervaluation.
+        if dev_action in ('GET_ON_BOARD', 'BUY', 'BUY_SMALL'):
+            status = 'fair'
+            action = 'HOLD'
+        else:
+            status = dev_status
+            action = dev_action
     
     return {
         'deviation_pct': round(deviation_pct * 100, 1),
@@ -372,6 +395,16 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
                 deviation['action'] = 'AVOID'
                 deviation['status'] = 'value_trap'
             
+            # Data quality check — if financial data has warnings, flag them
+            financial_data = analysis.get('financial_data', {})
+            data_quality = financial_data.get('data_quality', {})
+            dq_warnings = data_quality.get('warnings', [])
+            dq_is_clean = data_quality.get('is_clean', True)
+            
+            if not dq_is_clean and deviation['action'] in ('GET_ON_BOARD', 'BUY', 'BUY_SMALL'):
+                deviation['action'] = 'HOLD'
+                deviation['status'] = 'data_warning'
+            
             # Format PE percentile for display
             pe_pct_display = f"{value_data['pe_percentile']:.0f}%" if value_data['pe_percentile'] else 'N/A'
             
@@ -384,6 +417,9 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
                 'deviation_pct': deviation['deviation_pct'],
                 'status': deviation['status'],
                 'action': deviation['action'],
+                'no_pe_anchor': value_data.get('no_pe_anchor', False),
+                'data_quality_clean': dq_is_clean,
+                'data_quality_warnings': dq_warnings,
                 'moat_width': value_data.get('moat_width', 'None'),
                 'moat_score': value_data.get('moat_score', 5),
                 'value_trap_score': trap_score,
@@ -396,6 +432,7 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
                     'layer2_growth_value': value_data.get('layer2_growth_value'),
                     'layer3_moat_premium': value_data.get('layer3_moat_premium'),
                     'layer3_moat_value': value_data.get('layer3_moat_value'),
+                    'no_pe_anchor': value_data.get('no_pe_anchor', False),
                 },
                 'thesis': value_data.get('thesis', []),
                 'matched_industries': value_data.get('matched_industries', []),
@@ -413,16 +450,24 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
             }
             emoji = action_emoji.get(deviation['action'], '➡️')
             
-            # Build three-layer display
-            layer_info = f"L1: ${value_data.get('layer1_value', current_price):.0f}"
-            if value_data.get('layer2_growth_premium', 0) > 0:
-                layer_info += f" → L2: ${value_data.get('layer2_growth_value', 0):.0f} (+{int(value_data['layer2_growth_premium']*100)}%)"
-            if value_data.get('layer3_moat_premium', 0) > 0:
-                layer_info += f" → L3: ${value_data.get('layer3_moat_value', 0):.0f} (+{int(value_data['layer3_moat_premium']*100)}%)"
+            dq_flag = ' ⚠️' if not dq_is_clean else ''
             
+            # Build three-layer display
+            if value_data.get('no_pe_anchor'):
+                layer_info = "⚠️ No PE anchor — core value = current price (growth premiums suspended)"
+            else:
+                layer_info = f"L1: ${value_data.get('layer1_value', current_price):.0f}"
+                if value_data.get('layer2_growth_premium', 0) > 0:
+                    layer_info += f" → L2: ${value_data.get('layer2_growth_value', 0):.0f} (+{int(value_data['layer2_growth_premium']*100)}%)"
+                if value_data.get('layer3_moat_premium', 0) > 0:
+                    layer_info += f" → L3: ${value_data.get('layer3_moat_value', 0):.0f} (+{int(value_data['layer3_moat_premium']*100)}%)"
+
             print(f"  {emoji} {symbol}: ${current_price:.2f} | Core: ${core_value:.2f} | "
-                  f"PE Hist: {pe_pct_display} | {deviation['action']}")
+                  f"PE Hist: {pe_pct_display} | {deviation['action']}{dq_flag}")
             print(f"      {layer_info}")
+            if dq_warnings:
+                for w in dq_warnings[:2]:
+                    print(f"      ⚠️ Data: {w}")
             
         except Exception as e:
             print(f"  ⚠️  Failed to assess {symbol}: {e}", file=sys.stderr)
@@ -445,7 +490,7 @@ def main():
     parser = argparse.ArgumentParser(description='Stock Value Assessment Tool')
     parser.add_argument('--date', default=datetime.now().strftime('%Y-%m-%d'))
     parser.add_argument('--output', '-o', help='Output JSON file path')
-    parser.add_argument('symbols', nargs='*', default=['BABA.US', 'NVDA.US', 'TSLA.US', 'CEG.US', 'COIN.US', 'PLTR.US'])
+    parser.add_argument('symbols', nargs='*', default=None)
     args = parser.parse_args()
     
     print("=" * 70)
@@ -454,7 +499,9 @@ def main():
     print("Philosophy: Find core value, measure price deviation, decide action")
     print("-" * 70)
     
-    result = generate_value_assessment(args.date, args.symbols)
+    symbols = args.symbols if args.symbols else load_watchlist()
+    
+    result = generate_value_assessment(args.date, symbols)
     
     print("-" * 70)
     print(f"\n📊 Summary ({len(result['watchlist_assessments'])} stocks assessed)")

@@ -16,6 +16,9 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(SKILL_DIR))
 
+from watchlist_utils import load_watchlist
+
+
 class Backtest:
     def __init__(self, config_path=None):
         """Initialize backtest with configuration."""
@@ -33,9 +36,8 @@ class Backtest:
         self.backtests_dir.mkdir(parents=True, exist_ok=True)
         self.metrics_dir.mkdir(parents=True, exist_ok=True)
         
-        self.watchlist = self.config.get('watchlist', [
-            'BABA.US', 'NVDA.US', 'TSLA.US', 'CEG.US', 'COIN.US', 'PLTR.US'
-        ])
+        config_watchlist = self.config.get('watchlist', [])
+        self.watchlist = config_watchlist if config_watchlist else load_watchlist()
     
     def load_config(self, config_path):
         """Load YAML configuration file."""

@@ -7,19 +7,11 @@ predictions_dir: "predictions"      # relative to data_dir
 metrics_dir: "metrics"              # relative to data_dir
 backtests_dir: "backtests"          # relative to data_dir
 
-# Watchlist symbols (override default watchlist if needed)
-watchlist:
-  - BABA.US
-  - NVDA.US
-  - TSLA.US
-  - AAPL.US
-  - CEG.US
-  - COIN.US
-  - DUK.US
-  - GOOGL.US
-  - HOOD.US
-  - MSFT.US
-  - PLTR.US
+# Watchlist symbols — loaded from references/watchlist.json at runtime.
+# The watchlist list below is a cached copy for config reference only.
+# Edit references/watchlist.json to change the actual watchlist.
+# If this list is empty, scripts will fall back to loading from watchlist.json.
+watchlist: []
 
 # Daily summary settings
 summary:

@@ -14,6 +14,7 @@ from typing import Dict, List
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from analysis.analyze import LongbridgeDataFetcher, StockAnalyzer
+from watchlist_utils import load_watchlist
 
 
 def fetch_historical_kline(symbol: str, end_date: str, days: int = 200) -> List[Dict]:
@@ -268,11 +269,13 @@ def main():
     parser = argparse.ArgumentParser(description='Backtest stock analysis for a specific date')
     parser.add_argument('date', help='Target date for analysis (YYYY-MM-DD)')
     parser.add_argument('--symbols', nargs='+', 
-                       default=['BABA.US', 'NVDA.US', 'TSLA.US', 'CEG.US', 'COIN.US', 'PLTR.US'],
+                       default=None,
                        help='Symbols to analyze')
     parser.add_argument('--output', '-o', help='Output file path')
     
     args = parser.parse_args()
+    
+    symbols = args.symbols if args.symbols else load_watchlist()
     
     # Validate date
     try:
@@ -282,7 +285,7 @@ def main():
         sys.exit(1)
     
     # Run backtest analysis
-    result = analyze_as_of_date(args.date, args.symbols)
+    result = analyze_as_of_date(args.date, symbols)
     
     # Generate report
     report = generate_backtest_report(result)

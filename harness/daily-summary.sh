@@ -54,10 +54,18 @@ MAJOR_INDICES=$(longbridge quote .^GSPC.US .^DJI.US .^IXIC.US 2>/dev/null || ech
 
 # Step 3: Fetch quotes for watchlist
 echo "3. Fetching watchlist quotes..."
-WATCHLIST=($(get_config watchlist | tr -d '[]' | tr ',' ' '))
-if [ ${#WATCHLIST[@]} -eq 0 ]; then
-    # Default watchlist
-    WATCHLIST=("BABA.US" "NVDA.US" "TSLA.US" "CEG.US" "COIN.US" "PLTR.US")
+# Load watchlist from references/watchlist.json (single source of truth)
+WATCHLIST_JSON="$SKILL_DIR/references/watchlist.json"
+if [ -f "$WATCHLIST_JSON" ]; then
+    WATCHLIST=($(python3 -c "
+import json
+with open('$WATCHLIST_JSON') as f:
+    data = json.load(f)
+print(' '.join(item['symbol'] for item in data['watchlist']))
+"))
+else
+    # Fallback if watchlist.json is missing
+    WATCHLIST=($(python3 -c "from watchlist_utils import load_watchlist; print(' '.join(load_watchlist()))"))
 fi
 
 QUOTES_FILE="$DAILY_REPORTS_DIR/quotes-$TODAY.json"

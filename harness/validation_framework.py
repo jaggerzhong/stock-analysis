@@ -21,6 +21,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from watchlist_utils import load_watchlist
+
 
 @dataclass
 class ValidationResult:
@@ -49,7 +52,7 @@ class ValidationFramework:
         self.output_dir = self.data_dir / "validation"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        self.watchlist = ['BABA.US', 'NVDA.US', 'TSLA.US', 'CEG.US', 'COIN.US', 'PLTR.US']
+        self.watchlist = load_watchlist()
     
     def load_predictions(self, date: str) -> Optional[Dict]:
         path = self.predictions_dir / f"prediction-{date}.json"

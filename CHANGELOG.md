@@ -1,71 +1,96 @@
 # Stock Analysis Skill 更新日志
 
-## v2.2.0 - 2026-04-21 🚀 重大升级：量化分析引擎
+## v2.3.0 - 2026-05-09 🎯 财报数据集成 + 自迭代校验层
 
 ### 核心更新
 
-**新增完整的量化分析引擎，提供专业级的风险、估值、技术和多因子分析能力。**
+**真实财报数据集成 — 不再基于价格循环推导估值指标。**
+
+之前系统的 EPS 是从 PE 反推的（`current_price / pe_ratio` = 循环论证），营收、FCF、现金、负债等核心财务指标全部为 `None`。本次集成 `longbridge financial-report` 拉取完整三张报表（利润表/资产负债表/现金流量表）。
 
 ### 新增功能
 
-#### 1. 风险指标模块 ✨
-- **Sharpe Ratio** - 风险调整后收益（>2.0优秀，1.0-2.0良好）
-- **Maximum Drawdown** - 最大回撤（衡量历史最大损失）
-- **Sortino Ratio** - 下行风险调整收益
-- **Beta Coefficient** - 市场敏感性（<0.8防御，>1.2激进）
-- **Value at Risk (VaR)** - 95%置信度下的最大预期损失
-- **Historical Volatility** - 年化历史波动率
-- **Calmar Ratio** - 回撤调整收益
-- **Comprehensive Risk Score** - 综合0-100分风险评分
+#### 1. 财报数据拉取 (`analysis/analyze.py`)
+- **`fetch_financials()`** — 调用 `longbridge financial-report`，获取季度（qf）和年度（af）双版本
+- **`_extract_financial_data()`** — 解析 IS/BS/CF，提取营收、净利润、EPS、FCF、现金、负债、股东权益
+- **`_get_ttm_sum()`** — TTM（滚动 4 季度）求和
+- **`_get_yoy_growth()`** — 同比增速计算
+- **优先级：年度数据（af）优先** — 避免季度数据缺失导致的错误
 
-#### 2. 估值指标模块 ✨
-- **P/E Ratio** - 市盈率（含行业调整）
-- **PEG Ratio** - 市盈增长比（<0.5显著低估，>2.0高估）
-- **EV/EBITDA** - 企业价值倍数
-- **P/FCF** - 自由现金流倍数
-- **FCF Yield** - 自由现金流收益率
-- **Graham Intrinsic Value** - 格雷厄姆内在价值
-- **Valuation Score** - 综合0-100分估值评分
+#### 2. 数据质量自校验层 (`analysis/analyze.py`)
+- **`_validate_financial_data()`** — 每次拉取财报后自动运行，两级校验：
+  - **`error`** — 阻断买入信号（缺失关键字段、资产负债表不平）
+  - **`warn`** — 仅提示信息（FCF 季度 vs 年度差异、异常 QoQ 波动）
+- 校验结果输出到 `data_quality` 字段，透传到评估 JSON
 
-#### 3. 技术指标模块 ✨
-- **Moving Averages** - 移动平均线（SMA/EMA，支持多周期）
-- **RSI** - 相对强弱指标（>70超买，<30超卖）
-- **MACD** - 指数平滑异同移动平均线
-- **Bollinger Bands** - 布林带（波动率通道）
-- **Stochastic Oscillator** - 随机指标
-- **ATR** - 平均真实波幅
-- **Technical Score** - 综合0-100分技术评分
+#### 3. 校验联动 (`harness/generate_valuation.py`)
+- 当 `data_quality.is_clean == False` 时（存在 error），买入信号降级为 HOLD
+- `warn` 级别仅显示 ⚠️ 标识，不阻断正常买入信号
+- 校验结果写入评估 JSON 的 `data_quality_warnings` 字段
 
-#### 4. 多因子模型模块 ✨
-- **Quality Factor** - 质量因子（ROE、毛利率、盈利稳定性、负债率）
-- **Value Factor** - 价值因子（P/E、EV/EBITDA、FCF Yield、股息率）
-- **Growth Factor** - 成长因子（营收增长、EPS增长、预期增长）
-- **Momentum Factor** - 动量因子（价格动量、盈利动量）
-- **Low Volatility Factor** - 低波动因子
-- **Composite Factor Score** - 综合因子评分
-- **5种投资策略** - quality_value, growth_momentum, balanced, defensive, aggressive_growth
+#### 4. 统一看板加载 (`watchlist_utils.py`)
+- **新增 `watchlist_utils.py`** — 单一看板加载入口，所有模块从此读取
+- 提供 `load_watchlist()`, `load_watchlist_full()`, `load_watchlist_symbols_by_priority()`
+- 所有硬编码看板列表已替换为动态加载
 
-#### 5. 综合分析引擎 ✨
-- **完整分析流程** - 一键执行风险、估值、技术、因子分析
-- **智能投资建议** - STRONG BUY/BUY/HOLD/SELL/STRONG SELL
-- **置信度评估** - HIGH/MEDIUM-HIGH/MEDIUM/LOW-MEDIUM
-- **Markdown报告生成** - 专业级分析报告
-- **JSON数据导出** - 支持程序化处理
+### 数据质量校验检查项
 
-#### 6. 命令行工具 ✨
+| 检查 | 级别 | 说明 |
+|------|------|------|
+| TTM 字段完整性 | `error` | 4 个关键字段是否≥3 个有值 |
+| EPS 可用性 | `error` | 是否有可用 EPS |
+| 资产负债表平衡 | `error` | 资产 ≈ 负债 + 权益（误差<5%）|
+| FCF 季度 vs 年度 | `warn` | 季度 TTM 求和与年度值的差异 |
+| 异常 QoQ 波动 | `warn` | 营收/净利润/EPS 环比>500% |
+| 营收符号异常 | `warn` | 负营收 + 正净利润 |
+
+### 修复的 Bug
+
+#### Bug 1: 循环 EPS 推导
+- **问题：** EPS = 现价 / PE，然后用这个 EPS 算 P/E → 循环论证
+- **修复：** 从 `longbridge financial-report` 获取真实 EPS（TTM 求和）
+- **效果：** AAPL P/E 从 146x（单季 EPS 误算）变为 35.5x（TTM 正确值）
+
+#### Bug 2: DUK FCF 误判（季度数据缺失）
+- **问题：** DUK Q2 季度数据为空，TTM 求和只加了 3 个季度 → FCF 看起来 -$1.19B
+- **修复：** 改用年度报表（af）计算 TTM → FCF 实际 +$269M
+- **校验层捕获：** `fcf_qf_vs_af` 检查发现 196% 差异，标记 warn
+
+#### Bug 3: COIN/PLTR 虚假买入信号
+- **问题：** PE 分位 N/A 时，增长溢价把核心价值推高 → 现价看起来被低估
+- **修复：** PE 分位 N/A 时，核心价值=现价，买入信号封顶为 HOLD
+- **效果：** COIN $201（高于 $168 买入目标）不再喊买
+
+### 修改的文件
+
+| 文件 | 修改内容 |
+|------|---------|
+| `watchlist_utils.py` | **新增** — 统一看板加载模块 |
+| `analysis/analyze.py` | 新增 `fetch_financials()`, `_extract_financial_data()`, `_validate_financial_data()`，更新 `prepare_stock_data()`, `analyze_symbol()` |
+| `harness/generate_valuation.py` | 集成 `data_quality` 校验联动，显示 ⚠️ 警告 |
+| `harness/backtest.py` | 动态加载看板 |
+| `harness/backtest-analysis.py` | 动态加载看板 |
+| `harness/generate_predictions.py` | 动态加载看板 |
+| `harness/validation_framework.py` | 动态加载看板 |
+| `harness/daily-summary.sh` | 从 `watchlist.json` 动态加载 |
+| `harness/config.yaml` | 移除硬编码看板 |
+| `SKILL.md` | 引用 `watchlist.json` 替代内联列表 |
+| `CHANGELOG.md` | 本次更新 |
+
+### 破坏性变更
+
+- `harness/config.yaml` 的 `watchlist` 字段默认为空（`[]`），从 `references/watchlist.json` 自动加载
+- 要覆盖看板，在 config.yaml 中设置非空列表即可
+
+### 升级指南
+
+无需手动操作。安装依赖：
 ```bash
-# 分析单个股票
-python analyze.py AAPL.US
-
-# 分析自选股
-python analyze.py --watchlist
-
-# 分析持仓
-python analyze.py --portfolio
-
-# 保存报告
-python analyze.py NVDA.US -o report.md
+cd /Users/Jagger/.agents/skills/stock-analysis
+pip install -r analysis/requirements.txt
 ```
+
+---
 
 ### 新增文件
 

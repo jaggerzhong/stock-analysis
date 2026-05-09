@@ -1,6 +1,6 @@
 ---
 name: stock-analysis
-description: 'Comprehensive stock portfolio analyzer with fixed watchlist. TRIGGER on ANY of: (1) watchlist analysis — "分析自选股" / "analyze watchlist" / "my watchlist"; (2) portfolio analysis requests in any language — "分析我的持仓" / "portfolio analysis" / "stock review"; (3) market sentiment queries — "大盘情绪" / "market outlook"; (4) gap analysis — "缺口分析" / "support/resistance levels"; (5) position sizing — "仓位建议" / "should I buy/sell". Fixed watchlist includes: BABA, NVDA, TSLA, AAPL, CEG, COIN, DUK, GOOGL, HOOD, MSFT, PLTR. Integrates market sentiment, technical analysis (gap theory), valuation, and position management strategies.'
+description: 'Comprehensive stock portfolio analyzer with watchlist. TRIGGER on ANY of: (1) watchlist analysis — "分析自选股" / "analyze watchlist" / "my watchlist"; (2) portfolio analysis requests in any language — "分析我的持仓" / "portfolio analysis" / "stock review"; (3) market sentiment queries — "大盘情绪" / "market outlook"; (4) gap analysis — "缺口分析" / "support/resistance levels"; (5) position sizing — "仓位建议" / "should I buy/sell". Watchlist is defined in references/watchlist.json. Integrates market sentiment, technical analysis (gap theory), valuation, and position management strategies.'
 ---
 
 # Stock Portfolio Analyzer
@@ -23,21 +23,12 @@ We do NOT predict stock prices (speculation). Instead, we:
 **Trigger:** "分析自选股" / "analyze watchlist" / "我的自选股"
 
 **Fixed Watchlist:**
-```json
-[
-  {"symbol": "BABA.US", "name": "阿里巴巴", "sector": "Technology"},
-  {"symbol": "NVDA.US", "name": "英伟达", "sector": "Technology"},
-  {"symbol": "TSLA.US", "name": "特斯拉", "sector": "Consumer Discretionary"},
-  {"symbol": "AAPL.US", "name": "苹果", "sector": "Technology"},
-  {"symbol": "CEG.US", "name": "Constellation Energy", "sector": "Utilities"},
-  {"symbol": "COIN.US", "name": "Coinbase", "sector": "Financials"},
-  {"symbol": "DUK.US", "name": "杜克能源", "sector": "Utilities"},
-  {"symbol": "GOOGL.US", "name": "谷歌", "sector": "Technology"},
-  {"symbol": "HOOD.US", "name": "Robinhood", "sector": "Financials"},
-  {"symbol": "MSFT.US", "name": "微软", "sector": "Technology"},
-  {"symbol": "PLTR.US", "name": "Palantir", "sector": "Technology"}
-]
-```
+> See [references/watchlist.json](references/watchlist.json) for the authoritative watchlist definition.
+> Use `from watchlist_utils import load_watchlist` in Python, or the shell command below to get current symbols.
+>
+> ```bash
+> python3 -c "from watchlist_utils import load_watchlist; print(' '.join(load_watchlist()))"
+> ```
 
 **Quick Analysis Workflow:**
 
@@ -49,22 +40,18 @@ longbridge quote .^GSPC.US .^DJI.US .^IXIC.US
 
 2. **Batch Fetch Quotes** (parallel execution, ~1 minute)
 ```bash
-longbridge quote BABA.US NVDA.US TSLA.US AAPL.US CEG.US COIN.US DUK.US GOOGL.US HOOD.US MSFT.US PLTR.US
+# Load symbols from watchlist.json at runtime
+WATCHLIST=$(python3 -c "from watchlist_utils import load_watchlist; print(' '.join(load_watchlist()))")
+longbridge quote $WATCHLIST
 ```
 
 3. **Get News for Each Symbol** (parallel, ~2 minutes)
 ```bash
-longbridge news BABA.US
-longbridge news NVDA.US
-longbridge news TSLA.US
-longbridge news AAPL.US
-longbridge news CEG.US
-longbridge news COIN.US
-longbridge news DUK.US
-longbridge news GOOGL.US
-longbridge news HOOD.US
-longbridge news MSFT.US
-longbridge news PLTR.US
+# Load symbols and fetch news for each
+for SYMBOL in $(python3 -c "from watchlist_utils import load_watchlist; print(' '.join(load_watchlist()))"); do
+  longbridge news $SYMBOL &
+done
+wait
 ```
 
 4. **Generate Summary Report:**
@@ -510,20 +497,12 @@ def calculate_trap_score(symbol, financials, market_data):
 
 **Fixed Watchlist (自选股列表):**
 
-This skill maintains a fixed watchlist of 11 stocks. See [references/watchlist.json](references/watchlist.json).
+This skill maintains a watchlist defined in [references/watchlist.json](references/watchlist.json).
+Load symbols at runtime:
 
-**Symbols:**
-- `BABA.US` - 阿里巴巴 (Technology)
-- `NVDA.US` - 英伟达 (Technology)
-- `TSLA.US` - 特斯拉 (Consumer Discretionary)
-- `AAPL.US` - 苹果 (Technology)
-- `CEG.US` - 星座能源 (Utilities)
-- `COIN.US` - Coinbase (Financials)
-- `DUK.US` - 杜克能源 (Utilities)
-- `GOOGL.US` - 谷歌 (Technology)
-- `HOOD.US` - Robinhood (Financials)
-- `MSFT.US` - 微软 (Technology)
-- `PLTR.US` - Palantir (Technology)
+```bash
+python3 -c "from watchlist_utils import load_watchlist; print(' '.join(load_watchlist()))"
+```
 
 **Data Collection:**
 
@@ -531,9 +510,10 @@ For each symbol in watchlist, fetch:
 
 ```bash
 # Parallel execution for efficiency
-longbridge quote BABA.US NVDA.US TSLA.US AAPL.US CEG.US COIN.US DUK.US GOOGL.US HOOD.US MSFT.US PLTR.US
+WATCHLIST=$(python3 -c "from watchlist_utils import load_watchlist; print(' '.join(load_watchlist()))")
+longbridge quote $WATCHLIST
 
-# Individual analysis (can be parallel)
+# Individual analysis (can be parallel, example for one symbol)
 longbridge quote BABA.US
 longbridge kline history BABA.US --start $(date -v-60d +%Y-%m-%d) --end $(date +%Y-%m-%d) --period day
 longbridge intraday BABA.US
@@ -1302,14 +1282,9 @@ crontab -e
 Edit `harness/config.yaml` to customize:
 
 ```yaml
-# Watchlist symbols
-watchlist:
-  - BABA.US
-  - NVDA.US
-  - TSLA.US
-  - CEG.US
-  - COIN.US
-  - PLTR.US
+# Watchlist — loaded from references/watchlist.json at runtime
+# Edit references/watchlist.json to change the actual watchlist
+watchlist: []  # Empty = auto-load from watchlist.json
 
 # Backtest thresholds
 backtest:
