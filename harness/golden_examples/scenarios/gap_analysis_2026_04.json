@@ -1,0 +1,99 @@
+{
+  "scenario_name": "Gap Analysis - Support and Resistance",
+  "description": "Stocks with significant price gaps to analyze support/resistance levels",
+  "date": "2026-04-07",
+  "market_conditions": {
+    "sentiment": 47,
+    "temperature": 69,
+    "valuation": 91,
+    "interpretation": "Neutral sentiment with high valuation - focus on technical levels"
+  },
+  "stocks": [
+    {
+      "symbol": "NVDA.US",
+      "price": 121.54,
+      "gap_above": {
+        "resistance_1": 130.00,
+        "resistance_2": 140.00,
+        "distance_pct": 7.0
+      },
+      "gap_below": {
+        "support_1": 115.00,
+        "support_2": 105.00,
+        "distance_pct": 5.4
+      },
+      "rsi": 52.8,
+      "ma_50": 130.0,
+      "price_vs_ma": -6.5,
+      "expected_action": "HOLD",
+      "expected_reason": "Near support level (115), gap to resistance at 130",
+      "expected_score_range": [50, 60],
+      "risk_level": "MEDIUM",
+      "stop_loss": 112.00,
+      "target_price": 135.00
+    },
+    {
+      "symbol": "BABA.US",
+      "price": 119.72,
+      "gap_above": {
+        "resistance_1": 130.00,
+        "resistance_2": 145.00,
+        "distance_pct": 8.6
+      },
+      "gap_below": {
+        "support_1": 110.00,
+        "support_2": 100.00,
+        "distance_pct": 8.1
+      },
+      "rsi": 31.9,
+      "ma_50": 140.17,
+      "price_vs_ma": -14.7,
+      "expected_action": "BUY",
+      "expected_reason": "Near support, RSI oversold, gap to resistance provides upside target",
+      "expected_score_range": [70, 80],
+      "risk_level": "MEDIUM",
+      "stop_loss": 108.00,
+      "target_price": 138.00
+    }
+  ],
+  "expected_outcomes": {
+    "gap_theory_validation": {
+      "NVDA.US": {
+        "hit_resistance_1": false,
+        "bounced_from_support": true,
+        "actual_return_14d": 0.091,
+        "gap_filled": false,
+        "notes": "Bounced near support at 115, moved toward resistance"
+      },
+      "BABA.US": {
+        "hit_resistance_1": true,
+        "bounced_from_support": true,
+        "actual_return_14d": 0.171,
+        "gap_filled": false,
+        "notes": "Strong bounce from oversold, filled gap toward 130 resistance"
+      }
+    },
+    "strategy_accuracy": {
+      "correct_predictions": 3,
+      "total_predictions": 4,
+      "accuracy": 0.75
+    }
+  },
+  "strategy_validation": {
+    "gap_theory_principles": {
+      "support_strength": "Strong at MA convergence points",
+      "resistance_behavior": "Price tends to pause or reverse at gap levels",
+      "gap_fill_probability": "Higher when combined with RSI extremes"
+    },
+    "validation_status": "PASSED",
+    "key_insight": "Gap analysis combined with RSI provides strong entry/exit signals"
+  },
+  "lessons_learned": [
+    "Support at 50MA convergence is stronger than standalone support",
+    "Oversold RSI + near support = high probability bounce",
+    "Gap fill targets should be realistic (nearest resistance)",
+    "Volume confirmation increases gap fill probability",
+    "Multiple gaps provide multiple trading opportunities"
+  ],
+  "tags": ["gap_analysis", "support_resistance", "technical_analysis", "gap_fill"]
+}

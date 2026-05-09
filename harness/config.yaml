@@ -1,0 +1,72 @@
+# Harness configuration for daily stock analysis review
+
+# Data storage paths
+data_dir: "data"  # relative to harness directory
+daily_reports_dir: "daily"          # relative to data_dir
+predictions_dir: "predictions"      # relative to data_dir
+metrics_dir: "metrics"              # relative to data_dir
+backtests_dir: "backtests"          # relative to data_dir
+
+# Watchlist symbols (override default watchlist if needed)
+watchlist:
+  - BABA.US
+  - NVDA.US
+  - TSLA.US
+  - AAPL.US
+  - CEG.US
+  - COIN.US
+  - DUK.US
+  - GOOGL.US
+  - HOOD.US
+  - MSFT.US
+  - PLTR.US
+
+# Daily summary settings
+summary:
+  schedule: "0 9 * * *"
+  include_market_sentiment: true
+  include_gap_analysis: true
+  include_value_zones: true
+  include_market_environment: true  # NEW: VIX, breadth, sector rotation
+
+# Backtest settings
+backtest:
+  lookback_days: 30
+  metrics:
+    - price_direction_accuracy
+    - target_price_accuracy
+    - recommendation_accuracy
+  thresholds:
+    price_direction_accuracy: 0.6
+    target_price_accuracy: 0.3
+    recommendation_accuracy: 0.7
+
+# Adjustment logic
+adjustment:
+  enabled: false
+  methods:
+    - weight_adjustment
+    - metric_replacement
+    - threshold_tuning
+  min_observations: 10
+  learning_rate: 0.1
+
+# Reporting
+report:
+  format: markdown
+  output_dir: "data/daily"
+  include_charts: false
+  send_email: false
+  email_recipient: ""
+
+# NEW: Market Environment (Phase 2)
+market_environment:
+  enabled: true
+  vix_proxy: "VIXM.US"  # Use VIXM as VIX proxy (VIX is not directly tradeable)
+  breadth_use_watchlist: true  # Use watchlist stocks for breadth calculation
+  position_caps:
+    favorable: 1.0
+    neutral: 0.85
+    cautious: 0.65
+    defensive: 0.40
+    hostile: 0.25

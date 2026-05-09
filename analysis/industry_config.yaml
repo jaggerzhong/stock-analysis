@@ -1,0 +1,150 @@
+# Industry Trend Premiums for Forward-Looking Valuation
+# 三层估值模型 - 行业趋势溢价配置
+#
+# Philosophy:
+# - 传统估值方法看的是过去（PE历史百分位）
+# - 行业趋势溢价看的是未来（AI电力、核能复兴等）
+# - 护城河溢价看的是竞争壁垒（牌照、技术、资源）
+
+industries:
+  # AI Infrastructure - AI基础设施
+  ai_power:
+    name: "AI Power & Energy"
+    description: "AI数据中心电力需求爆发"
+    growth_premium: 0.30
+    confidence: 0.8
+    symbols:
+      - "CEG"    # Constellation Energy - 核能为AI供电
+      - "VST"    # Vistra - 电力供应商
+      - "NRG"    # NRG Energy
+    thesis: "AI训练/推理耗电量巨大，数据中心电力需求未来5年CAGR > 25%"
+    
+  nuclear_renaissance:
+    name: "Nuclear Renaissance"
+    description: "核能复兴 - 清洁基荷能源"
+    moat_premium: 0.20
+    confidence: 0.7
+    symbols:
+      - "CEG"    # Constellation Energy - 核能牌照
+      - "EXC"    # Exelon
+      - "CCJ"    # Cameco - 铀矿
+      - "SMR"    # NuScale - 小型模块化反应堆
+    thesis: "核能是唯一可行的零碳基荷能源，牌照稀缺=护城河"
+    
+  datacenter_infra:
+    name: "DataCenter Infrastructure"
+    description: "数据中心基础设施"
+    growth_premium: 0.20
+    confidence: 0.8
+    symbols:
+      - "EQIX"   # Equinix - 数据中心REIT
+      - "DLR"    # Digital Realty
+      - "PLTR"   # Palantir - AI软件+数据
+    thesis: "云计算+AI推动数据中心需求持续增长"
+    
+  ai_chips:
+    name: "AI Chips & Semiconductors"
+    description: "AI芯片与半导体"
+    growth_premium: 0.25
+    confidence: 0.75
+    symbols:
+      - "NVDA"   # NVIDIA - AI芯片龙头
+      - "AMD"    # AMD - AI芯片挑战者
+      - "AVGO"   # Broadcom - AI网络芯片
+    thesis: "AI算力需求驱动芯片需求爆发"
+    
+  crypto_infrastructure:
+    name: "Crypto Infrastructure"
+    description: "加密货币基础设施"
+    growth_premium: 0.15
+    confidence: 0.5
+    symbols:
+      - "COIN"   # Coinbase
+      - "MSTR"   # MicroStrategy
+    thesis: "加密货币市场复苏，交易所受益"
+    
+  ev_transition:
+    name: "EV Transition"
+    description: "电动车转型"
+    growth_premium: 0.10
+    confidence: 0.6
+    symbols:
+      - "TSLA"   # Tesla
+      - "RIVN"   # Rivian
+      - "NIO"    # NIO
+    thesis: "电动车渗透率持续提升，但竞争加剧"
+    
+  cloud_saas:
+    name: "Cloud & SaaS"
+    description: "云计算与SaaS"
+    growth_premium: 0.15
+    confidence: 0.7
+    symbols:
+      - "SNOW"   # Snowflake
+      - "DDOG"   # Datadog
+      - "MDB"    # MongoDB
+    thesis: "企业数字化转型持续，云服务需求稳定"
+
+  # E-commerce & Tech Giants (mature)
+  ecommerce_mature:
+    name: "Mature E-commerce"
+    description: "成熟电商"
+    growth_premium: 0.05
+    confidence: 0.6
+    symbols:
+      - "BABA"   # Alibaba
+      - "AMZN"   # Amazon
+      - "JD"     # JD.com
+    thesis: "增长放缓，估值回归传统PE"
+
+# Moat Premium Rules
+# 护城河溢价规则
+moat_rules:
+  wide_moat_premium: 0.20
+  narrow_moat_premium: 0.10
+  no_moat_discount: -0.10
+  
+  moat_types:
+    regulatory_license:
+      description: "监管牌照（核能、金融等）"
+      premium: 0.20
+      examples: ["CEG", "EXC"]
+      
+    network_effect:
+      description: "网络效应（社交、交易平台）"
+      premium: 0.15
+      examples: ["COIN", "PLTR"]
+      
+    technology_moat:
+      description: "技术壁垒（芯片设计、AI模型）"
+      premium: 0.15
+      examples: ["NVDA", "AMD"]
+      
+    cost_advantage:
+      description: "成本优势（规模效应）"
+      premium: 0.10
+      examples: ["TSLA", "AMZN"]
+
+# Growth-Value Balance
+# 成长与价值的平衡
+growth_value_balance:
+  # 高增长股票：PE百分位权重降低，增长溢价权重提高
+  high_growth:
+    pe_percentile_weight: 0.30
+    growth_premium_weight: 0.45
+    moat_premium_weight: 0.25
+    criteria: "revenue_growth > 20%"
+    
+  # 平衡增长：三层均衡
+  balanced:
+    pe_percentile_weight: 0.40
+    growth_premium_weight: 0.35
+    moat_premium_weight: 0.25
+    criteria: "revenue_growth 10-20%"
+    
+  # 价值股：PE百分位为主
+  value:
+    pe_percentile_weight: 0.60
+    growth_premium_weight: 0.15
+    moat_premium_weight: 0.25
+    criteria: "revenue_growth < 10%"

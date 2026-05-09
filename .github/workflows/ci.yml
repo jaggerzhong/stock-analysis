@@ -1,0 +1,115 @@
+name: Stock Analysis Harness CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'harness/**'
+      - 'analysis/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'harness/**'
+      - 'analysis/**'
+  schedule:
+    - cron: '0 6 * * 1-5'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov pyyaml
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Run unit tests
+      run: |
+        cd harness
+        python -m pytest tests/unit/ -v --cov=. --cov-report=xml --cov-report=html
+    
+    - name: Validate golden examples
+      run: |
+        cd harness
+        python validate_golden_examples.py
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./harness/coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install linters
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pylint black mypy
+    
+    - name: Run Black
+      run: |
+        black --check harness/ analysis/
+    
+    - name: Run Flake8
+      run: |
+        flake8 harness/ analysis/ --max-line-length=100 --ignore=E501,W503
+    
+    - name: Run MyPy
+      run: |
+        mypy harness/ analysis/ --ignore-missing-imports
+      continue-on-error: true
+
+  backtest-daily:
+    name: Daily Backtest Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyyaml
+    
+    - name: Run daily backtest
+      run: |
+        cd harness
+        python -c "from backtest import Backtest; bh = Backtest(); print('Backtest system operational')"
+      env:
+        LONGBRIDGE_APP_KEY: ${{ secrets.LONGBRIDGE_APP_KEY }}
+        LONGBRIDGE_APP_SECRET: ${{ secrets.LONGBRIDGE_APP_SECRET }}
+        LONGBRIDGE_ACCESS_TOKEN: ${{ secrets.LONGBRIDGE_ACCESS_TOKEN }}
+    
+    - name: Alert on failure
+      if: failure()
+      run: |
+        echo "Daily backtest check failed! Investigation needed."

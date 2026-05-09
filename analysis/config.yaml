@@ -1,0 +1,238 @@
+# Analysis Engine Configuration
+# This file contains configurable thresholds and parameters
+
+risk:
+  weights:
+    max_drawdown: 0.30
+    volatility: 0.25
+    beta: 0.20
+    var: 0.15
+    correlation: 0.10
+  
+  drawdown_thresholds:
+    very_high: 0.50
+    high: 0.30
+    medium: 0.20
+    low: 0.10
+  
+  volatility_thresholds:
+    very_high: 0.50
+    high: 0.30
+    medium: 0.20
+    low: 0.15
+  
+  var_thresholds:
+    very_high: 0.05
+    high: 0.03
+    medium: 0.02
+    low: 0.01
+
+valuation:
+  weights:
+    pe: 0.20
+    peg: 0.25
+    p_fcf: 0.20
+    ev_ebitda: 0.20
+    dcf: 0.15
+  
+  sector_pe_benchmarks:
+    Technology:
+      median: 22
+      range: [15, 35]
+    Healthcare:
+      median: 18
+      range: [12, 30]
+    Financials:
+      median: 12
+      range: [8, 18]
+    Consumer_Staples:
+      median: 16
+      range: [12, 22]
+    Utilities:
+      median: 14
+      range: [10, 18]
+    Industrials:
+      median: 15
+      range: [10, 22]
+    Energy:
+      median: 10
+      range: [6, 15]
+    Consumer_Discretionary:
+      median: 18
+      range: [12, 28]
+  
+  sector_ev_ebitda_benchmarks:
+    Technology:
+      range: [8, 20]
+    Healthcare:
+      range: [8, 20]
+    Financials:
+      range: [5, 12]
+    Utilities:
+      range: [5, 12]
+    Industrials:
+      range: [6, 15]
+    Energy:
+      range: [4, 10]
+    Consumer_Staples:
+      range: [6, 15]
+    Consumer_Discretionary:
+      range: [6, 15]
+
+technical:
+  weights:
+    trend: 0.30
+    momentum: 0.25
+    volume: 0.20
+    volatility: 0.15
+    support_resistance: 0.10
+  
+  rsi:
+    period: 14
+    oversold_extreme: 20
+    oversold: 30
+    overbought: 70
+    overbought_extreme: 80
+  
+  macd:
+    fast: 12
+    slow: 26
+    signal: 9
+  
+  bollinger:
+    period: 20
+    num_std: 2.0
+  
+  gap:
+    threshold_pct: 1.0
+  
+  support_resistance:
+    lookback: 90
+    min_touches: 2
+    cluster_tolerance: 0.015
+
+factors:
+  strategies:
+    quality_value:
+      quality: 0.40
+      value: 0.40
+      growth: 0.10
+      momentum: 0.05
+      low_volatility: 0.05
+    growth_momentum:
+      quality: 0.20
+      value: 0.10
+      growth: 0.40
+      momentum: 0.25
+      low_volatility: 0.05
+    balanced:
+      quality: 0.25
+      value: 0.25
+      growth: 0.20
+      momentum: 0.20
+      low_volatility: 0.10
+    defensive:
+      quality: 0.30
+      value: 0.30
+      growth: 0.10
+      momentum: 0.10
+      low_volatility: 0.20
+    aggressive_growth:
+      quality: 0.15
+      value: 0.10
+      growth: 0.50
+      momentum: 0.20
+      low_volatility: 0.05
+
+moat:
+  sector_gross_margins:
+    Technology: 0.55
+    Healthcare: 0.60
+    Financials: 0.70
+    Consumer_Staples: 0.35
+    Utilities: 0.40
+    Industrials: 0.30
+    Energy: 0.35
+    Consumer_Discretionary: 0.40
+  
+  sector_recurring_revenue:
+    Technology: 0.60
+    Financials: 0.70
+    Healthcare: 0.50
+    Consumer_Staples: 0.40
+    Utilities: 0.50
+    Industrials: 0.30
+    Energy: 0.20
+    Consumer_Discretionary: 0.30
+  
+  sector_op_margins:
+    Technology: 0.20
+    Healthcare: 0.18
+    Financials: 0.25
+    Consumer_Staples: 0.10
+    Utilities: 0.15
+    Industrials: 0.10
+    Energy: 0.12
+    Consumer_Discretionary: 0.10
+  
+  thresholds:
+    wide: 7
+    narrow: 5
+    minimal: 3
+  
+  safety_margins:
+    wide: 0.10
+    narrow: 0.20
+    minimal: 0.35
+
+value_trap:
+  weights:
+    roic_vs_wacc: 25
+    fcf_health: 20
+    debt_health: 20
+    earnings_quality: 20
+    dividend_yield: 15
+  
+  risk_thresholds:
+    critical: 50
+    high: 30
+    medium: 15
+  
+  wacc_params:
+    risk_free_rate: 0.045
+    market_risk_premium: 0.06
+    default_cost_of_debt: 0.05
+    default_tax_rate: 0.25
+
+overall:
+  weights:
+    risk: 0.10
+    valuation: 0.35
+    technical: 0.30
+    factor: 0.25
+  
+  score_to_position:
+    extreme_greed:     { min: 80, position: 17.5 }
+    greed:             { min: 70, position: 32.5 }
+    neutral_bullish:   { min: 60, position: 47.5 }
+    neutral:           { min: 40, position: 57.5 }
+    fear:              { min: 30, position: 72.5 }
+    extreme_fear:      { min: 0,  position: 87.5 }
+  
+  recommendation_thresholds:
+    strong_buy: 75
+    buy: 65
+    hold: 55
+    weak_hold: 45
+    sell: 35
+  
+  position_sizing:
+    base_position: 0.10
+    max_position: 0.15
+    min_position: 0.02
+    
+    volatility_tiers:
+      very_high: 0.60
+      high: 0.40
+      moderate: 0.25
+      low: 0.25

@@ -1,0 +1,18 @@
+# Stock Analysis Engine Requirements
+
+# Core dependencies
+numpy>=1.20.0
+
+# Optional dependencies for enhanced functionality
+scipy>=1.7.0  # For statistical functions in VaR calculation
+pyyaml>=5.4.0  # For configuration file parsing
+
+# Longbridge SDK (if using Python SDK instead of CLI)
+# longbridge>=0.1.0
+
+# Data visualization (optional)
+# matplotlib>=3.3.0
+# plotly>=5.0.0
+
+# Testing
+# pytest>=6.0.0

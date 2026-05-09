@@ -1,0 +1,103 @@
+{
+  "watchlist": [
+    {
+      "symbol": "BABA.US",
+      "name": "阿里巴巴",
+      "name_en": "Alibaba",
+      "sector": "Technology",
+      "description": "中国电商和云计算巨头，AI布局领先",
+      "priority": 1
+    },
+    {
+      "symbol": "NVDA.US",
+      "name": "英伟达",
+      "name_en": "NVIDIA",
+      "sector": "Technology",
+      "description": "AI芯片龙头，数据中心业务强劲",
+      "priority": 1
+    },
+    {
+      "symbol": "TSLA.US",
+      "name": "特斯拉",
+      "name_en": "Tesla",
+      "sector": "Consumer Discretionary",
+      "description": "电动车龙头，自动驾驶和储能业务",
+      "priority": 1
+    },
+    {
+      "symbol": "AAPL.US",
+      "name": "苹果",
+      "name_en": "Apple",
+      "sector": "Technology",
+      "description": "消费电子巨头，生态系统完善",
+      "priority": 2
+    },
+    {
+      "symbol": "CEG.US",
+      "name": "星座能源",
+      "name_en": "Constellation Energy",
+      "sector": "Utilities",
+      "description": "核能发电公司，AI数据中心供电合作",
+      "priority": 2
+    },
+    {
+      "symbol": "COIN.US",
+      "name": "Coinbase",
+      "name_en": "Coinbase",
+      "sector": "Financials",
+      "description": "加密货币交易所，受益于加密市场回暖",
+      "priority": 2
+    },
+    {
+      "symbol": "DUK.US",
+      "name": "杜克能源",
+      "name_en": "Duke Energy",
+      "sector": "Utilities",
+      "description": "美国大型电力公司，稳定分红",
+      "priority": 2
+    },
+    {
+      "symbol": "GOOGL.US",
+      "name": "谷歌",
+      "name_en": "Alphabet",
+      "sector": "Technology",
+      "description": "搜索引擎和云计算龙头，AI研发领先",
+      "priority": 2
+    },
+    {
+      "symbol": "HOOD.US",
+      "name": "Robinhood",
+      "name_en": "Robinhood",
+      "sector": "Financials",
+      "description": "互联网券商，加密货币和股票交易平台",
+      "priority": 2
+    },
+    {
+      "symbol": "MSFT.US",
+      "name": "微软",
+      "name_en": "Microsoft",
+      "sector": "Technology",
+      "description": "云计算和软件巨头，AI战略布局完善",
+      "priority": 2
+    },
+    {
+      "symbol": "PLTR.US",
+      "name": "Palantir",
+      "name_en": "Palantir",
+      "sector": "Technology",
+      "description": "大数据分析公司，AI平台增长强劲",
+      "priority": 2
+    }
+  ],
+  "metadata": {
+    "created_at": "2026-04-20",
+    "updated_at": "2026-05-07",
+    "total_count": 11,
+    "sectors": {
+      "Technology": 6,
+      "Consumer Discretionary": 1,
+      "Utilities": 2,
+      "Financials": 2
+    }
+  }
+}

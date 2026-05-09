@@ -1,0 +1,77 @@
+{
+  "scenario_name": "Bull Market Rally - April 2026",
+  "description": "Strong uptrend with oversold bounce opportunities",
+  "date": "2026-04-07",
+  "market_conditions": {
+    "sentiment": 47,
+    "temperature": 69,
+    "valuation": 91,
+    "interpretation": "High valuation but neutral sentiment - mixed signals"
+  },
+  "stocks": [
+    {
+      "symbol": "BABA.US",
+      "price": 119.72,
+      "rsi": 31.9,
+      "ma_50": 140.17,
+      "volume_ratio": 1.2,
+      "expected_action": "BUY",
+      "expected_reason": "Oversold bounce opportunity (RSI < 35, price below 50MA)",
+      "expected_score_range": [65, 75],
+      "risk_level": "MEDIUM"
+    },
+    {
+      "symbol": "NVDA.US",
+      "price": 178.10,
+      "rsi": 49.9,
+      "ma_50": 185.0,
+      "volume_ratio": 1.0,
+      "expected_action": "HOLD",
+      "expected_reason": "Neutral RSI, near fair value",
+      "expected_score_range": [50, 55],
+      "risk_level": "MEDIUM"
+    },
+    {
+      "symbol": "TSLA.US",
+      "price": 346.65,
+      "rsi": 34.7,
+      "ma_50": 365.0,
+      "volume_ratio": 1.3,
+      "expected_action": "BUY",
+      "expected_reason": "Near oversold (RSI < 35), potential bounce",
+      "expected_score_range": [60, 70],
+      "risk_level": "HIGH"
+    },
+    {
+      "symbol": "COIN.US",
+      "price": 175.18,
+      "rsi": 44.7,
+      "ma_50": 190.0,
+      "volume_ratio": 0.9,
+      "expected_action": "AVOID",
+      "expected_reason": "Extremely high volatility (73%), risk score 83/100",
+      "expected_score_range": [35, 45],
+      "risk_level": "VERY_HIGH"
+    }
+  ],
+  "expected_outcomes": {
+    "14_day_performance": {
+      "BABA.US": {"expected_return": 0.15, "actual_return": 0.171},
+      "NVDA.US": {"expected_return": 0.10, "actual_return": 0.135},
+      "TSLA.US": {"expected_return": 0.12, "actual_return": 0.132},
+      "COIN.US": {"expected_return": -0.05, "actual_return": 0.208}
+    },
+    "strategy_accuracy": {
+      "correct_predictions": 3,
+      "total_predictions": 4,
+      "accuracy": 0.75
+    }
+  },
+  "lessons_learned": [
+    "RSI < 35 correctly identified oversold bounce opportunities (BABA, TSLA)",
+    "High valuation (91) did not prevent market rally",
+    "High risk stocks (COIN) can still rally despite warnings",
+    "Need to balance risk warnings with momentum signals"
+  ],
+  "tags": ["bull_market", "oversold_bounce", "high_valuation", "mixed_sentiment"]
+}

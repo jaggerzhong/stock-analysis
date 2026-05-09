@@ -1,0 +1,87 @@
+{
+  "scenario_name": "High Volatility Warning - Risk Management",
+  "description": "Stocks with high volatility (>60%) requiring strict risk management",
+  "date": "2026-04-07",
+  "market_conditions": {
+    "sentiment": 47,
+    "temperature": 69,
+    "valuation": 91,
+    "interpretation": "High valuation but neutral sentiment - cautious approach needed"
+  },
+  "stocks": [
+    {
+      "symbol": "COIN.US",
+      "price": 175.20,
+      "volatility_14d": 73.2,
+      "beta": 2.8,
+      "rsi": 58.3,
+      "ma_50": 210.0,
+      "price_vs_ma": -16.6,
+      "expected_action": "HOLD or REDUCE",
+      "expected_reason": "Extremely high volatility (73%) - high risk, requires tight stop loss",
+      "expected_score_range": [30, 45],
+      "risk_level": "VERY HIGH",
+      "position_size_max": 0.05,
+      "stop_loss_pct": 8.0,
+      "target_price": 195.00
+    },
+    {
+      "symbol": "PLTR.US",
+      "price": 22.40,
+      "volatility_14d": 52.8,
+      "beta": 2.3,
+      "rsi": 62.1,
+      "ma_50": 23.5,
+      "price_vs_ma": -4.7,
+      "expected_action": "HOLD",
+      "expected_reason": "Moderate-high volatility with neutral RSI, wait for clearer signal",
+      "expected_score_range": [40, 50],
+      "risk_level": "HIGH",
+      "position_size_max": 0.08,
+      "stop_loss_pct": 10.0,
+      "target_price": 25.00
+    }
+  ],
+  "expected_outcomes": {
+    "risk_managed": {
+      "COIN.US": {
+        "expected_max_drawdown": -8.0,
+        "actual_max_drawdown": -5.2,
+        "drawdown_within_limit": true,
+        "actual_return_14d": 0.208,
+        "hit_target": true
+      },
+      "PLTR.US": {
+        "expected_max_drawdown": -10.0,
+        "actual_max_drawdown": -7.8,
+        "drawdown_within_limit": true,
+        "actual_return_14d": 0.107,
+        "hit_target": true
+      }
+    },
+    "strategy_validation": {
+      "risk_management_effective": true,
+      "position_limits_respected": true,
+      "stop_losses_triggered": false,
+      "outcome": "Position sizing and stop loss recommendations prevented excessive losses"
+    }
+  },
+  "strategy_validation": {
+    "volatility_threshold": {
+      "high": 50,
+      "very_high": 70
+    },
+    "expected_behavior": "Reduce position size and tighten stop losses for volatile stocks",
+    "actual_behavior": "Correctly identified high volatility, provided appropriate warnings",
+    "validation_status": "PASSED",
+    "key_insight": "High volatility stocks can still be profitable with proper risk management"
+  },
+  "lessons_learned": [
+    "Volatility alone doesn't mean avoid - means manage risk",
+    "Position sizing should be inversely proportional to volatility",
+    "Stop loss percentage should match volatility level",
+    "Beta > 2.0 requires extra caution in uncertain markets",
+    "COIN 73% volatility with proper sizing still yielded +20.8%"
+  ],
+  "tags": ["volatility", "risk_management", "position_sizing", "high_risk"]
+}

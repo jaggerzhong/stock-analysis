@@ -1,0 +1,81 @@
+{
+  "scenario_name": "Overbought Warning - Profit Taking",
+  "description": "Stocks with RSI > 70 indicating overbought conditions, expecting pullback or correction",
+  "date": "2026-04-21",
+  "market_conditions": {
+    "sentiment": 52,
+    "temperature": 72,
+    "valuation": 94,
+    "interpretation": "High valuation with warming sentiment - caution recommended for overbought stocks"
+  },
+  "stocks": [
+    {
+      "symbol": "NVDA.US",
+      "price": 132.60,
+      "rsi": 72.5,
+      "rsi_interpretation": "OVERBOUGHT",
+      "ma_50": 128.0,
+      "price_vs_ma": 3.6,
+      "volume_ratio": 1.4,
+      "expected_action": "HOLD or TAKE_PROFIT",
+      "expected_reason": "RSI > 70 suggests overbought, consider taking partial profits",
+      "expected_score_range": [45, 55],
+      "risk_level": "MEDIUM",
+      "profit_target": 140.00,
+      "stop_loss": 125.00
+    },
+    {
+      "symbol": "TSLA.US",
+      "price": 392.50,
+      "rsi": 76.3,
+      "rsi_interpretation": "STRONG_OVERBOUGHT",
+      "ma_50": 380.0,
+      "price_vs_ma": 3.3,
+      "volume_ratio": 1.8,
+      "expected_action": "TAKE_PROFIT",
+      "expected_reason": "RSI > 75 strongly overbought, high probability of pullback",
+      "expected_score_range": [35, 45],
+      "risk_level": "HIGH",
+      "profit_target": 400.00,
+      "stop_loss": 370.00
+    }
+  ],
+  "expected_outcomes": {
+    "5_day_performance": {
+      "NVDA.US": {
+        "expected_pullback": -0.03,
+        "actual_return": null,
+        "hit_overbought_signal": true
+      },
+      "TSLA.US": {
+        "expected_pullback": -0.05,
+        "actual_return": null,
+        "hit_overbought_signal": true
+      }
+    },
+    "strategy_validation": {
+      "rsi_overbought_threshold": 70,
+      "strong_overbought_threshold": 75,
+      "expected_behavior": "Price should consolidate or pullback within 3-5 days",
+      "validation_notes": "RSI > 70 correctly signals profit-taking opportunities"
+    }
+  },
+  "strategy_validation": {
+    "rsi_threshold": {
+      "overbought": 70,
+      "strong_overbought": 75,
+      "extreme_overbought": 80
+    },
+    "expected_accuracy_with_rsi_over_70": 0.65,
+    "validation_status": "PENDING",
+    "key_insight": "Overbought signals are less reliable in strong uptrends, use with trend confirmation"
+  },
+  "lessons_learned": [
+    "RSI > 70 works best for short-term profit taking, not long-term trend reversal",
+    "Volume spike (>1.5x) with overbought = stronger signal",
+    "Overbought can persist in strong momentum (don't short blindly)",
+    "Take partial profits (50%) rather than full exit",
+    "Combine with MACD divergence for stronger reversal signals"
+  ],
+  "tags": ["overbought", "rsi_reversal", "profit_taking", "pullback"]
+}
