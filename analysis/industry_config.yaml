@@ -97,6 +97,44 @@ industries:
       - "JD"     # JD.com
     thesis: "增长放缓，估值回归传统PE"
 
+  # Platform & Cloud Ecosystems
+  platform_ecosystem:
+    name: "Platform & Cloud Ecosystem"
+    description: "平台与云生态系统"
+    growth_premium: 0.15
+    confidence: 0.75
+    symbols:
+      - "MSFT"   # Microsoft - Azure + Office 365
+      - "AAPL"   # Apple - iOS ecosystem
+      - "GOOGL"   # Alphabet - Search + Cloud
+      - "GOOG"   # Alphabet C shares
+    thesis: "云计算+生态系统锁定，高客户粘性+持续现金流"
+    moat_premium: 0.20
+    
+  # Trading & Fintech Platforms
+  fintech_trading:
+    name: "Trading & Fintech Platform"
+    description: "交易与金融科技平台"
+    growth_premium: 0.10
+    confidence: 0.5
+    symbols:
+      - "HOOD"   # Robinhood - Retail trading platform
+      - "COIN"   # Coinbase - Crypto exchange
+    thesis: "利率敏感，市场波动受益，但监管风险高"
+    
+  # Regulated Utilities
+  regulated_utilities:
+    name: "Regulated Utilities"
+    description: "受监管公用事业"
+    growth_premium: 0.05
+    confidence: 0.7
+    symbols:
+      - "DUK"   # Duke Energy - Southeast utility monopoly
+      - "NEE"   # NextEra - Renewable utility leader
+      - "EXC"   # Exelon - Nuclear utility
+    thesis: "稳定分红，监管保护，低增长但高可预测性"
+    moat_premium: 0.15
+
 # Moat Premium Rules
 # 护城河溢价规则
 moat_rules:
@@ -108,22 +146,32 @@ moat_rules:
     regulatory_license:
       description: "监管牌照（核能、金融等）"
       premium: 0.20
-      examples: ["CEG", "EXC"]
+      examples: ["CEG", "EXC", "DUK", "NEE"]
       
     network_effect:
       description: "网络效应（社交、交易平台）"
       premium: 0.15
-      examples: ["COIN", "PLTR"]
+      examples: ["COIN", "PLTR", "HOOD"]
       
     technology_moat:
       description: "技术壁垒（芯片设计、AI模型）"
       premium: 0.15
-      examples: ["NVDA", "AMD"]
+      examples: ["NVDA", "AMD", "AVGO", "GOOGL"]
       
+    ecosystem_lock_in:
+      description: "生态系统锁定（iOS、Azure、AWS）"
+      premium: 0.20
+      examples: ["AAPL", "MSFT", "AMZN"]
+    
     cost_advantage:
-      description: "成本优势（规模效应）"
+      description: "成本优势（规模效应、制造壁垒）"
       premium: 0.10
-      examples: ["TSLA", "AMZN"]
+      examples: ["TSLA", "AMZN", "BABA"]
+    
+    brand_power:
+      description: "品牌力（消费者粘性、定价权）"
+      premium: 0.10
+      examples: ["AAPL", "NVDA", "TSLA"]
 
 # Growth-Value Balance
 # 成长与价值的平衡

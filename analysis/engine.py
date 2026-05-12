@@ -3001,6 +3001,22 @@ class MoatAnalyzer:
         return min(2.0, score), reasons
     
     @staticmethod
+    def _get_moat_override(symbol: str) -> dict:
+        """Get moat override from watchlist.json if available."""
+        try:
+            wl_path = Path(__file__).parent.parent / 'references' / 'watchlist.json'
+            with open(wl_path) as f:
+                wl = json.load(f)
+            for item in wl.get('watchlist', []):
+                if item.get('symbol', '').upper() == symbol.upper().split('.')[0]:
+                    moat = item.get('moat_override')
+                    if moat:
+                        return moat
+        except Exception:
+            pass
+        return {}
+    
+    @staticmethod
     def analyze_moat(stock_data: StockData) -> Dict:
         gross_margin = None
         if stock_data.revenue and stock_data.revenue > 0 and stock_data.free_cash_flow is not None:
@@ -3054,6 +3070,15 @@ class MoatAnalyzer:
              ('regulatory', regulatory_score, regulatory_reasons)]
         )
         
+        # Apply watchlist moat overrides if available
+        symbol = getattr(stock_data, 'symbol', '') or ''
+        moat_override = MoatAnalyzer._get_moat_override(symbol)
+        if moat_override:
+            if 'moat_score' in moat_override:
+                moat_score = moat_override['moat_score']
+            if 'moat_width' in moat_override:
+                moat_width_override = moat_override['moat_width']
+        
         if moat_score >= 7:
             moat_width = 'Wide'
             required_margin = 0.10
@@ -3066,6 +3091,10 @@ class MoatAnalyzer:
         else:
             moat_width = None  # No moat, not string 'None'
             required_margin = None
+        
+        # Apply moat_width override after threshold calculation
+        if moat_override and 'moat_width' in moat_override:
+            moat_width = moat_override['moat_width']
         
         return {
             'moat_score': round(moat_score, 1),

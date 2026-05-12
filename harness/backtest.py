@@ -63,7 +63,11 @@ class Backtest:
         return datetime.now().strftime('%Y-%m-%d')
     
     def load_prediction(self, date):
-        """Load prediction file for given date."""
+        """Load prediction file for given date. Tries assessment format first, then prediction format."""
+        data = self.load_assessment(date)
+        if data:
+            return data
+        
         prediction_file = self.predictions_dir / f"prediction-{date}.json"
         if not prediction_file.exists():
             return None
@@ -76,6 +80,60 @@ class Backtest:
         except json.JSONDecodeError:
             print(f"Error decoding JSON from {prediction_file}")
             return None
+    
+    def load_assessment(self, date):
+        """Load assessment file and normalize to prediction-compatible format."""
+        assessment_file = self.predictions_dir / f"assessment-{date}.json"
+        if not assessment_file.exists():
+            return None
+        
+        try:
+            with open(assessment_file, 'r') as f:
+                assessment = json.load(f)
+        except json.JSONDecodeError:
+            print(f"Error decoding JSON from {assessment_file}")
+            return None
+        
+        if 'watchlist_assessments' not in assessment:
+            return None
+        
+        normalized = {
+            'date': assessment.get('date', date),
+            '_source_file': str(assessment_file),
+            '_source_format': 'assessment',
+        }
+        
+        pred_items = []
+        for item in assessment.get('watchlist_assessments', []):
+            symbol = item.get('symbol', '')
+            action = item.get('action', 'HOLD')
+            deviation_pct = item.get('deviation_pct', 0)
+            current_price = item.get('current_price', 0)
+            
+            if deviation_pct < -5:
+                predicted_direction = 'up'
+            elif deviation_pct > 5:
+                predicted_direction = 'down'
+            else:
+                predicted_direction = 'neutral'
+            
+            normalized_item = {
+                'symbol': symbol,
+                'predicted_direction': predicted_direction,
+                'recommendation': action,
+                'current_price': str(current_price),
+                'core_value': item.get('core_value'),
+                'deviation_pct': deviation_pct,
+                'status': item.get('status', ''),
+                'pe_percentile': item.get('valuation_details', {}).get('pe_percentile'),
+                'moat_score': item.get('moat_score'),
+                'value_trap_score': item.get('value_trap_score', 0),
+            }
+            
+            pred_items.append(normalized_item)
+        
+        normalized['watchlist_predictions'] = pred_items
+        return normalized
     
     def load_actual_quotes(self, date):
         """Load actual quotes for given date. Supports both list and dict formats."""

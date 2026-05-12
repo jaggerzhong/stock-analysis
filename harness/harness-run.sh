@@ -167,7 +167,7 @@ generate_report() {
     
     # Check backtest results (compares yesterday vs yesterday)
     YESTERDAY=$(date -v-1d +%Y-%m-%d 2>/dev/null || date -d "yesterday" +%Y-%m-%d)
-    if [ -f "$DATA_DIR/backtests/backtest-$YESTERDAY-$YESTERDAY.json" ]; then
+    if [ -f "$DATA_DIR/backtests/backtest-$YESTERDAY-$TODAY.json" ]; then
         echo "✅ Backtest completed for $YESTERDAY"
     else
         echo "❌ Backtest not completed"

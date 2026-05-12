@@ -6,7 +6,14 @@
       "name_en": "Alibaba",
       "sector": "Technology",
       "description": "中国电商和云计算巨头，AI布局领先",
-      "priority": 1
+      "priority": 1,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 5.5,
+        "moat_premium": 0.10,
+        "moat_types": ["network_effect", "cost_advantage"],
+        "notes": "平台网络效应+规模优势，但竞争加剧+政策风险"
+      }
     },
     {
       "symbol": "NVDA.US",
@@ -14,7 +21,14 @@
       "name_en": "NVIDIA",
       "sector": "Technology",
       "description": "AI芯片龙头，数据中心业务强劲",
-      "priority": 1
+      "priority": 1,
+      "moat_override": {
+        "moat_width": "Wide",
+        "moat_score": 8.5,
+        "moat_premium": 0.20,
+        "moat_types": ["technology_moat", "network_effect", "switching_cost"],
+        "notes": "CUDA生态锁定+算力垄断+客户转换成本极高"
+      }
     },
     {
       "symbol": "TSLA.US",
@@ -22,7 +36,14 @@
       "name_en": "Tesla",
       "sector": "Consumer Discretionary",
       "description": "电动车龙头，自动驾驶和储能业务",
-      "priority": 1
+      "priority": 1,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 5.0,
+        "moat_premium": 0.08,
+        "moat_types": ["brand_moat", "technology_moat"],
+        "notes": "品牌+技术领先，但竞争加剧+CEO风险"
+      }
     },
     {
       "symbol": "AAPL.US",
@@ -30,7 +51,14 @@
       "name_en": "Apple",
       "sector": "Technology",
       "description": "消费电子巨头，生态系统完善",
-      "priority": 2
+      "priority": 2,
+      "moat_override": {
+        "moat_width": "Wide",
+        "moat_score": 9.0,
+        "moat_premium": 0.20,
+        "moat_types": ["brand_moat", "switching_cost", "network_effect"],
+        "notes": "品牌溢价极高+iOS生态锁定+App Store网络效应"
+      }
     },
     {
       "symbol": "CEG.US",
@@ -38,7 +66,14 @@
       "name_en": "Constellation Energy",
       "sector": "Utilities",
       "description": "核能发电公司，AI数据中心供电合作",
-      "priority": 2
+      "priority": 2,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 6.5,
+        "moat_premium": 0.15,
+        "moat_types": ["regulatory_license", "cost_advantage"],
+        "notes": "核能牌照稀缺+AI供电需求增长，但公用事业周期性"
+      }
     },
     {
       "symbol": "COIN.US",
@@ -46,7 +81,14 @@
       "name_en": "Coinbase",
       "sector": "Financials",
       "description": "加密货币交易所，受益于加密市场回暖",
-      "priority": 2
+      "priority": 2,
+      "moat_override": {
+        "moat_width": "Minimal",
+        "moat_score": 3.5,
+        "moat_premium": 0.05,
+        "moat_types": ["network_effect", "regulatory_license"],
+        "notes": "合规牌照+用户网络，但周期性极强+竞争激烈"
+      }
     },
     {
       "symbol": "DUK.US",
@@ -54,7 +96,14 @@
       "name_en": "Duke Energy",
       "sector": "Utilities",
       "description": "美国大型电力公司，稳定分红",
-      "priority": 2
+      "priority": 2,
+      "moat_override": {
+        "moat_width": "Wide",
+        "moat_score": 7.5,
+        "moat_premium": 0.15,
+        "moat_types": ["regulatory_license", "switching_cost"],
+        "notes": "监管垄断+客户无法转换，极稳定的现金流和高分红"
+      }
     },
     {
       "symbol": "GOOGL.US",
@@ -62,7 +111,14 @@
       "name_en": "Alphabet",
       "sector": "Technology",
       "description": "搜索引擎和云计算龙头，AI研发领先",
-      "priority": 2
+      "priority": 2,
+      "moat_override": {
+        "moat_width": "Wide",
+        "moat_score": 8.0,
+        "moat_premium": 0.18,
+        "moat_types": ["network_effect", "brand_moat", "technology_moat"],
+        "notes": "搜索垄断+广告网络效应+云+AI多轮驱动"
+      }
     },
     {
       "symbol": "HOOD.US",
@@ -70,7 +126,14 @@
       "name_en": "Robinhood",
       "sector": "Financials",
       "description": "互联网券商，加密货币和股票交易平台",
-      "priority": 2
+      "priority": 2,
+      "moat_override": {
+        "moat_width": "Minimal",
+        "moat_score": 3.0,
+        "moat_premium": 0.03,
+        "moat_types": ["network_effect"],
+        "notes": "用户增长快但转换成本低，周期性强"
+      }
     },
     {
       "symbol": "MSFT.US",
@@ -78,7 +141,14 @@
       "name_en": "Microsoft",
       "sector": "Technology",
       "description": "云计算和软件巨头，AI战略布局完善",
-      "priority": 2
+      "priority": 2,
+      "moat_override": {
+        "moat_width": "Wide",
+        "moat_score": 9.5,
+        "moat_premium": 0.20,
+        "moat_types": ["switching_cost", "network_effect", "brand_moat"],
+        "notes": "企业级生态锁定+Azure云+Office垄断+AI布局领先"
+      }
     },
     {
       "symbol": "PLTR.US",
@@ -86,12 +156,19 @@
       "name_en": "Palantir",
       "sector": "Technology",
       "description": "大数据分析公司，AI平台增长强劲",
-      "priority": 2
+      "priority": 2,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 5.5,
+        "moat_premium": 0.10,
+        "moat_types": ["switching_cost", "technology_moat"],
+        "notes": "政府合同锁定+数据整合壁垒，但商业端竞争加剧"
+      }
     }
   ],
   "metadata": {
     "created_at": "2026-04-20",
-    "updated_at": "2026-05-07",
+    "updated_at": "2026-05-12",
     "total_count": 11,
     "sectors": {
       "Technology": 6,

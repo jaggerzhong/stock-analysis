@@ -60,6 +60,15 @@ valuation:
     Consumer_Discretionary:
       median: 18
       range: [12, 28]
+    Real_Estate:
+      median: 16
+      range: [10, 25]
+    Communication_Services:
+      median: 18
+      range: [12, 30]
+    Materials:
+      median: 13
+      range: [8, 20]
   
   sector_ev_ebitda_benchmarks:
     Technology:
@@ -78,6 +87,12 @@ valuation:
       range: [6, 15]
     Consumer_Discretionary:
       range: [6, 15]
+    Real_Estate:
+      range: [8, 18]
+    Communication_Services:
+      range: [8, 18]
+    Materials:
+      range: [5, 12]
 
 technical:
   weights:

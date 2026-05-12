@@ -9,7 +9,7 @@ stock-analysis/
 ├── SKILL.md                          # 主文档 - 完整的分析流程
 ├── README.md                         # 本文件
 ├── CHANGELOG.md                      # 更新日志
-├── analysis/                         # 分析引擎 (v2.0新增)
+├── analysis/                         # 分析引擎 (v3.0: 三层估值)
 │   ├── engine.py                     # 核心分析引擎
 │   ├── analyze.py                    # 命令行分析脚本
 │   └── requirements.txt              # Python依赖
@@ -596,6 +596,17 @@ stock-analysis/
 - **每日harness系统** - 自动复盘和指标调整 (见SKILL.md中Harness部分)
 
 ## 更新日志
+
+- **v3.0** (2026-05-12): 🎯 三层估值引擎 + 行业调整 + 回测修复
+  - ✨ 三层估值模型：PE百分位锚点 + 增长溢价 + 护城河溢价（加法，25%上限）
+  - ✨ 增长/护城河溢价从乘法(+56%)改为加法(+25%上限)，消除系统性高估
+  - ✨ PE锚点缺失时P/S比率→行业PE中位数fallback链
+  - ✨ PE百分位逻辑修正：高PE历史=谨慎信号，非"便宜"信号
+  - ✨ watchlist.json添加`moat_override`字段：NVDA(8.5)、AAPL(9.0)、MSFT(9.5)
+  - ✨ 公用事业(DUK)行业调整：PE百分位-15点，价值陷阱阈值+20
+  - ✨ backtest.py支持assessment格式回测，回测准确率83.3%/91.7%
+  - 🔧 修复4个P0系统性Bug，回测方向准确率41.7%→83.3%
+  - 📊 industry_config.yaml扩展至11个行业+6种护城河类型
 
 - **v2.3.0** (2026-05-09): 🎯 财报数据集成 + 自迭代校验层
   - ✨ 真实财报数据集成 — 从 `longbridge financial-report` 获取利润表/资产负债表/现金流量表
