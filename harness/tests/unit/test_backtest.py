@@ -6,6 +6,7 @@ Run with: pytest tests/unit/test_backtest.py -v
 
 import pytest
 import sys
+import json
 from pathlib import Path
 from datetime import datetime
 
@@ -14,6 +15,8 @@ SKILL_DIR = Path(__file__).parent.parent.parent.parent.resolve()
 sys.path.insert(0, str(SKILL_DIR))
 
 from harness.backtest import Backtest
+from harness.market_environment import parse_market_temp, quote_change_pct, relative_trend
+from harness.strategy_backtest import _extract_market_environment
 from harness.strategy_rules import MarketEnvironment, action_weight, adjusted_action
 
 
@@ -342,6 +345,44 @@ class TestStrategyRules:
             MarketEnvironment(sentiment=60, valuation=65),
         )
         assert weight == 0.0
+
+
+class TestMarketEnvironmentHarness:
+    def test_parse_market_temp_table(self):
+        output = """
+| Field       | Value                                 |
+|-------------|---------------------------------------|
+| Market      | HK                                    |
+| Temperature | 48                                    |
+| Valuation   | 74                                    |
+| Sentiment   | 23                                    |
+"""
+        parsed = parse_market_temp(output)
+        assert parsed['market'] == 'HK'
+        assert parsed['temperature'] == 48
+        assert parsed['valuation'] == 74
+        assert parsed['sentiment'] == 23
+
+    def test_relative_trend_uses_change_spread(self):
+        quotes = {
+            'QQQ.US': {'change_percentage': '1.00'},
+            'SPY.US': {'change_percentage': '0.50'},
+        }
+        assert relative_trend(quotes, 'QQQ.US', 'SPY.US') == 'up'
+
+    def test_strategy_backtest_prefers_structured_environment(self, tmp_path):
+        env_path = tmp_path / 'market-environment-2026-06-18.json'
+        report_path = tmp_path / 'report-2026-06-18.md'
+        env_path.write_text(json.dumps({
+            'market_temp': {'sentiment': 22, 'valuation': 77, 'temperature': 49},
+            'assessment': {'dimension_breakdown': {}}
+        }))
+        report_path.write_text('')
+
+        env = _extract_market_environment(report_path)
+        assert env.sentiment == 22
+        assert env.valuation == 77
+        assert env.temperature == 49
 
 
 class TestBacktestEdgeCases:

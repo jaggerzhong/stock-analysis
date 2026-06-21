@@ -51,6 +51,27 @@ def _quote_prev_close(quote: dict[str, Any]) -> float | None:
 
 
 def _extract_market_environment(report_path: Path) -> MarketEnvironment:
+    env_path = report_path.with_name(report_path.name.replace("report-", "market-environment-").replace(".md", ".json"))
+    if env_path.exists():
+        try:
+            data = _load_json(env_path)
+            market_temp = data.get("market_temp", {})
+            assessment = data.get("assessment", {})
+            dims = assessment.get("dimension_breakdown", {})
+            sentiment = market_temp.get("sentiment")
+            valuation = market_temp.get("valuation")
+            if sentiment is None:
+                sentiment = dims.get("sentiment_modifier", {}).get("raw")
+            if valuation is None:
+                valuation = dims.get("valuation", {}).get("raw")
+            return MarketEnvironment(
+                sentiment=float(sentiment) if sentiment is not None else None,
+                valuation=float(valuation) if valuation is not None else None,
+                temperature=float(market_temp.get("temperature")) if market_temp.get("temperature") is not None else None,
+            )
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
     if not report_path.exists():
         return MarketEnvironment()
 

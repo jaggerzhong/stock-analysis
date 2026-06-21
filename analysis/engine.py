@@ -3986,11 +3986,173 @@ class MarketEnvironmentAnalyzer:
         }
 
     @staticmethod
+    def _clamp_score(score: float) -> float:
+        return max(0.0, min(100.0, score))
+
+    @staticmethod
+    def _score_valuation(market_valuation: Optional[float], warnings: List[str]) -> Dict:
+        if market_valuation is None:
+            return {'score': 50.0, 'status': 'UNKNOWN', 'raw': None}
+
+        if market_valuation > 90:
+            warnings.append(f"Extreme market valuation ({market_valuation}) - hard position cap active")
+            score, status = 10, 'EXTREME'
+        elif market_valuation > 85:
+            warnings.append(f"High market valuation ({market_valuation}) - position cap active")
+            score, status = 20, 'HIGH'
+        elif market_valuation > 75:
+            score, status = 40, 'ELEVATED'
+        elif market_valuation > 55:
+            score, status = 55, 'FAIR_HIGH'
+        elif market_valuation > 35:
+            score, status = 70, 'FAIR'
+        else:
+            score, status = 85, 'ATTRACTIVE'
+
+        return {'score': float(score), 'status': status, 'raw': market_valuation}
+
+    @staticmethod
+    def _score_trend(trend_data: Optional[Dict], is_ath: bool, warnings: List[str]) -> Dict:
+        data = trend_data or {}
+        if 'score' in data:
+            score = MarketEnvironmentAnalyzer._clamp_score(float(data['score']))
+            return {'score': score, 'status': data.get('status', 'CUSTOM'), 'raw': data}
+
+        checks = []
+        for key in ('spy_above_50', 'spy_above_200', 'qqq_above_50', 'qqq_above_200'):
+            if key in data:
+                checks.append(bool(data[key]))
+
+        if not checks:
+            score = 60 if not is_ath else 55
+            status = 'UNKNOWN_ATH' if is_ath else 'UNKNOWN'
+        else:
+            ratio = sum(1 for item in checks if item) / len(checks)
+            score = 25 + ratio * 60
+            status = 'UPTREND' if ratio >= 0.75 else 'MIXED' if ratio >= 0.50 else 'DOWNTREND'
+
+        deviation = data.get('spy_200d_deviation_pct')
+        if deviation is not None:
+            deviation = float(deviation)
+            if deviation > 20:
+                score -= 10
+                warnings.append(f"SPY extended {deviation:.1f}% above 200DMA - overheating risk")
+            elif deviation < -10:
+                score -= 10
+                warnings.append(f"SPY below 200DMA by {abs(deviation):.1f}% - downtrend risk")
+
+        if is_ath:
+            score -= 5
+            warnings.append("Market at all-time highs - momentum exhaustion risk")
+
+        return {'score': round(MarketEnvironmentAnalyzer._clamp_score(score), 1), 'status': status, 'raw': data or None}
+
+    @staticmethod
+    def _score_breadth(breadth_result: Dict, warnings: List[str]) -> Dict:
+        status = breadth_result.get('status')
+        if status == 'STRONG_BREADTH':
+            score = 85
+        elif status == 'MODERATE_BREADTH':
+            score = 70
+        elif status == 'WEAK_BREADTH':
+            score = 45
+        elif status == 'NARROW':
+            score = 25
+            warnings.append(f"Narrow market breadth: {breadth_result.get('description')}")
+        else:
+            score = 50
+        return {'score': float(score), 'status': status or 'UNKNOWN', 'raw': breadth_result}
+
+    @staticmethod
+    def _score_risk_appetite(vix: Optional[float], risk_appetite_data: Optional[Dict], warnings: List[str]) -> Dict:
+        data = risk_appetite_data or {}
+        if 'score' in data:
+            score = MarketEnvironmentAnalyzer._clamp_score(float(data['score']))
+            return {'score': score, 'status': data.get('status', 'CUSTOM'), 'raw': data}
+
+        components = []
+        vix_regime = None
+        if vix is not None:
+            vix_regime = MarketEnvironmentAnalyzer.classify_vix_regime(vix)
+            if vix_regime['regime'] == 'NORMAL':
+                components.append(75)
+            elif vix_regime['regime'] == 'ELEVATED':
+                components.append(55)
+            elif vix_regime['regime'] == 'FEARFUL':
+                components.append(35)
+                warnings.append(f"VIX regime: {vix_regime['label']} - {vix_regime['description']}")
+            elif vix_regime['regime'] == 'CRISIS':
+                components.append(15)
+                warnings.append(f"VIX regime: {vix_regime['label']} - {vix_regime['description']}")
+            elif vix_regime['regime'] == 'COMPLACENT':
+                components.append(45)
+                warnings.append(f"VIX regime: {vix_regime['label']} - {vix_regime['description']}")
+
+        for key in ('qqq_spy', 'smh_spy', 'hyg_trend', 'high_beta_trend'):
+            value = data.get(key)
+            if value in ('up', 'bullish', True):
+                components.append(75)
+            elif value in ('down', 'bearish', False):
+                components.append(35)
+            elif value is not None:
+                components.append(50)
+
+        for key in ('xlu_spy', 'xlp_spy'):
+            value = data.get(key)
+            if value in ('up', 'defensive_leadership', True):
+                components.append(35)
+                warnings.append(f"Defensive leadership detected: {key}")
+            elif value in ('down', 'risk_on', False):
+                components.append(65)
+
+        score = statistics.mean(components) if components else 50
+        status = 'RISK_ON' if score >= 65 else 'RISK_OFF' if score < 45 else 'NEUTRAL'
+        return {'score': round(score, 1), 'status': status, 'raw': data or None, 'vix_regime': vix_regime}
+
+    @staticmethod
+    def _score_liquidity(liquidity_data: Optional[Dict], warnings: List[str]) -> Dict:
+        data = liquidity_data or {}
+        if 'score' in data:
+            score = MarketEnvironmentAnalyzer._clamp_score(float(data['score']))
+            return {'score': score, 'status': data.get('status', 'CUSTOM'), 'raw': data}
+
+        components = []
+        ten_year_change = data.get('ten_year_yield_change_bps')
+        if ten_year_change is not None:
+            ten_year_change = float(ten_year_change)
+            if ten_year_change > 25:
+                components.append(25)
+                warnings.append(f"10Y yield rising quickly (+{ten_year_change:.0f} bps) - valuation pressure")
+            elif ten_year_change > 10:
+                components.append(45)
+            elif ten_year_change < -15:
+                components.append(70)
+            else:
+                components.append(55)
+
+        for key in ('dxy_trend', 'credit_spread_trend', 'real_rate_trend'):
+            value = data.get(key)
+            if value in ('up', 'widening', 'tightening_liquidity'):
+                components.append(35)
+                warnings.append(f"Liquidity headwind: {key}={value}")
+            elif value in ('down', 'narrowing', 'easing_liquidity'):
+                components.append(70)
+            elif value is not None:
+                components.append(50)
+
+        score = statistics.mean(components) if components else 50
+        status = 'EASY' if score >= 65 else 'TIGHT' if score < 45 else 'NEUTRAL'
+        return {'score': round(score, 1), 'status': status, 'raw': data or None}
+
+    @staticmethod
     def assess_market_environment(vix: Optional[float] = None,
                                   market_sentiment: Optional[float] = None,
                                   market_valuation: Optional[float] = None,
                                   is_ath: bool = False,
-                                  breadth_data: Optional[List[float]] = None) -> Dict:
+                                  breadth_data: Optional[List[float]] = None,
+                                  trend_data: Optional[Dict] = None,
+                                  risk_appetite_data: Optional[Dict] = None,
+                                  liquidity_data: Optional[Dict] = None) -> Dict:
         """Comprehensive market environment assessment.
 
         Args:
@@ -4003,30 +4165,11 @@ class MarketEnvironmentAnalyzer:
         Returns:
             Dict with environment_score, position_cap, warnings, regime
         """
-        env_score = 0
         warnings = []
+        caps_applied = []
 
-        # 1. Volatility Regime (VIX)
-        vix_regime = None
-        if vix is not None:
-            vix_regime = MarketEnvironmentAnalyzer.classify_vix_regime(vix)
-            regime_score = 0
-            if vix_regime['regime'] == 'NORMAL':
-                regime_score = 80
-            elif vix_regime['regime'] == 'ELEVATED':
-                regime_score = 55
-            elif vix_regime['regime'] == 'FEARFUL':
-                regime_score = 35
-                warnings.append(f"VIX regime: {vix_regime['label']} - {vix_regime['description']}")
-            elif vix_regime['regime'] == 'CRISIS':
-                regime_score = 15
-                warnings.append(f"VIX regime: {vix_regime['label']} - {vix_regime['description']}")
-            elif vix_regime['regime'] == 'COMPLACENT':
-                regime_score = 50
-                warnings.append(f"VIX regime: {vix_regime['label']} - {vix_regime['description']}")
-            env_score += regime_score * 0.30
-
-        # 2. Sentiment (0-100)
+        # Sentiment is contrarian: extreme fear improves opportunity score,
+        # but hard caps below still prevent blind dip-buying in expensive markets.
         if market_sentiment is not None:
             if market_sentiment > 80:
                 sentiment_score = 15  # Extreme greed = risky
@@ -4042,43 +4185,36 @@ class MarketEnvironmentAnalyzer:
             else:
                 sentiment_score = 90  # Extreme fear = opportunity
                 warnings.append(f"Extreme fear sentiment ({market_sentiment}) - contrarian opportunity")
-            env_score += sentiment_score * 0.25
+        else:
+            sentiment_score = 50
 
-        # 3. Valuation (0-100)
-        if market_valuation is not None:
-            if market_valuation > 85:
-                valuation_score = 15
-                warnings.append(f"Extreme market valuation ({market_valuation}) - position cap active")
-            elif market_valuation > 70:
-                valuation_score = 35
-            elif market_valuation > 50:
-                valuation_score = 55
-            elif market_valuation > 30:
-                valuation_score = 75
-            else:
-                valuation_score = 90
-            env_score += valuation_score * 0.25
-
-        # 4. All-Time High Risk
-        ath_score = 50
-        if is_ath:
-            ath_score = 30
-            warnings.append("Market at all-time highs - momentum exhaustion risk")
-        env_score += ath_score * 0.10
-
-        # 5. Market Breadth
+        valuation_dimension = MarketEnvironmentAnalyzer._score_valuation(market_valuation, warnings)
+        trend_dimension = MarketEnvironmentAnalyzer._score_trend(trend_data, is_ath, warnings)
         breadth_result = MarketEnvironmentAnalyzer.analyze_market_breadth(breadth_data or [])
-        breadth_score = 50
-        if breadth_result.get('status') == 'STRONG_BREADTH':
-            breadth_score = 80
-        elif breadth_result.get('status') == 'MODERATE_BREADTH':
-            breadth_score = 65
-        elif breadth_result.get('status') == 'WEAK_BREADTH':
-            breadth_score = 40
-        elif breadth_result.get('status') == 'NARROW':
-            breadth_score = 25
-            warnings.append(f"Narrow market breadth: {breadth_result.get('description')}")
-        env_score += breadth_score * 0.10
+        breadth_dimension = MarketEnvironmentAnalyzer._score_breadth(breadth_result, warnings)
+        risk_dimension = MarketEnvironmentAnalyzer._score_risk_appetite(vix, risk_appetite_data, warnings)
+        liquidity_dimension = MarketEnvironmentAnalyzer._score_liquidity(liquidity_data, warnings)
+
+        # Five-dimensional market model. Valuation determines the cap, trend and
+        # breadth confirm quality, risk appetite and liquidity catch stress.
+        weights = {
+            'valuation': 0.30,
+            'trend': 0.25,
+            'breadth': 0.20,
+            'risk_appetite': 0.15,
+            'liquidity': 0.10,
+        }
+        env_score = (
+            valuation_dimension['score'] * weights['valuation'] +
+            trend_dimension['score'] * weights['trend'] +
+            breadth_dimension['score'] * weights['breadth'] +
+            risk_dimension['score'] * weights['risk_appetite'] +
+            liquidity_dimension['score'] * weights['liquidity']
+        )
+
+        # Blend in sentiment as a secondary modifier, not a primary dimension.
+        env_score += (sentiment_score - 50) * 0.10
+        env_score = MarketEnvironmentAnalyzer._clamp_score(env_score)
 
         # Classify environment
         if env_score >= 70:
@@ -4097,13 +4233,51 @@ class MarketEnvironmentAnalyzer:
             environment = 'HOSTILE'
             position_cap = 0.25
 
+        # Hard caps: valuation and structural risk override a friendly score.
+        if market_valuation is not None:
+            if market_valuation > 90:
+                position_cap = min(position_cap, 0.25)
+                caps_applied.append('valuation_gt_90_cap_25pct')
+            elif market_valuation > 85:
+                position_cap = min(position_cap, 0.35)
+                caps_applied.append('valuation_gt_85_cap_35pct')
+            elif market_valuation > 75:
+                position_cap = min(position_cap, 0.50)
+                caps_applied.append('valuation_gt_75_cap_50pct')
+
+        if is_ath:
+            position_cap = round(position_cap * 0.85, 3)
+            caps_applied.append('ath_reduce_15pct')
+
+        if breadth_dimension['status'] == 'NARROW':
+            position_cap = min(position_cap, 0.65)
+            caps_applied.append('narrow_breadth_cap_65pct')
+
+        if liquidity_dimension['status'] == 'TIGHT':
+            position_cap = min(position_cap, 0.65)
+            caps_applied.append('tight_liquidity_cap_65pct')
+
         return {
             'environment_score': round(env_score, 1),
             'environment': environment,
             'position_cap': position_cap,
             'warnings': warnings,
-            'vix_regime': vix_regime,
-            'breadth': breadth_result
+            'vix_regime': risk_dimension.get('vix_regime'),
+            'breadth': breadth_result,
+            'dimension_breakdown': {
+                'valuation': valuation_dimension,
+                'trend': trend_dimension,
+                'breadth': breadth_dimension,
+                'risk_appetite': risk_dimension,
+                'liquidity': liquidity_dimension,
+                'sentiment_modifier': {
+                    'score': round(float(sentiment_score), 1),
+                    'raw': market_sentiment,
+                    'weight': 0.10,
+                },
+            },
+            'dimension_weights': weights,
+            'position_caps_applied': caps_applied,
         }
 
 

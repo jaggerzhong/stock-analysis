@@ -1,6 +1,6 @@
 # Stock Analysis Skill
 
-**当前版本：v3.4.0**
+**当前版本：v3.5.0**
 
 智能股票分析系统，整合市场情绪、缺口理论、价值区间和仓位管理策略。
 
@@ -19,6 +19,7 @@ stock-analysis/
 │   ├── harness-run.sh                # 主运行脚本
 │   ├── daily-summary.sh              # 每日总结
 │   ├── backtest.py                   # 回测脚本
+│   ├── market_environment.py         # 五维市场环境采集与评分
 │   ├── strategy_rules.py             # 策略执行规则：市场过滤 + 信号权重
 │   ├── strategy_backtest.py          # 策略组合回测与新旧规则对比
 │   └── adjust-metrics.py             # 指标调整
@@ -621,6 +622,14 @@ stock-analysis/
 - **每日harness系统** - 自动复盘和指标调整 (见SKILL.md中Harness部分)
 
 ## 更新日志
+
+- **v3.5.0** (2026-06-21): 🌡️ 五维市场环境 + Daily Harness 接入
+  - ✨ `MarketEnvironmentAnalyzer` 升级为五维评分：估值、趋势、市场宽度、风险偏好、流动性
+  - ✨ 新增硬性仓位上限：高估值、ATH、窄宽度、流动性收紧会直接限制总仓位
+  - ✨ 新增 `harness/market_environment.py`，采集 `SPY/QQQ/RSP/SMH/XLU/XLP/HYG/JNK/UUP/VIXM` 并生成结构化环境 JSON
+  - ✨ `daily-summary.sh` 自动输出 `market-environment-YYYY-MM-DD.json`，日报展示环境评分、仓位上限和触发的 cap
+  - 🔧 `strategy_backtest.py` 优先读取结构化市场环境数据，旧 Markdown 解析保留为 fallback
+  - ✅ 验证：`test_engine.py` 78 passed，`test_backtest.py` 21 passed，`market_environment.py` smoke test 通过
 
 - **v3.4.0** (2026-06-21): 🧪 Harness 策略规则 + 组合回测
   - ✨ 新增 `harness/strategy_rules.py`，把市场环境过滤、买入信号降级、护城河和价值陷阱权重分层抽成可复用规则

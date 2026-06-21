@@ -23,6 +23,7 @@ from analysis.engine import (
     MoatAnalyzer,
     ValueTrapDetector,
     ConflictResolver,
+    MarketEnvironmentAnalyzer,
     StockAnalysisEngine,
 )
 
@@ -145,6 +146,62 @@ class TestRiskMetrics:
         assert 'sharpe_ratio' in result
         assert 'risk_score' in result
         assert 0 <= result['risk_score'] <= 100
+
+
+# ============================================================
+# MarketEnvironmentAnalyzer
+# ============================================================
+
+class TestMarketEnvironmentAnalyzer:
+    def test_five_dimension_environment_has_breakdown(self):
+        result = MarketEnvironmentAnalyzer.assess_market_environment(
+            vix=16,
+            market_sentiment=55,
+            market_valuation=60,
+            breadth_data=[1.0, 0.5, -0.2, 0.8],
+            trend_data={
+                'spy_above_50': True,
+                'spy_above_200': True,
+                'qqq_above_50': True,
+                'qqq_above_200': True,
+            },
+            risk_appetite_data={'qqq_spy': 'up', 'smh_spy': 'up'},
+            liquidity_data={'ten_year_yield_change_bps': 5},
+        )
+
+        assert 0 <= result['environment_score'] <= 100
+        assert 'dimension_breakdown' in result
+        assert set(result['dimension_weights']) == {
+            'valuation', 'trend', 'breadth', 'risk_appetite', 'liquidity'
+        }
+        assert result['position_cap'] <= 1.0
+
+    def test_high_valuation_applies_hard_cap(self):
+        result = MarketEnvironmentAnalyzer.assess_market_environment(
+            market_sentiment=20,
+            market_valuation=91,
+            breadth_data=[1.0, 1.0, 1.0],
+            trend_data={'score': 90},
+            risk_appetite_data={'score': 80},
+            liquidity_data={'score': 80},
+        )
+
+        assert result['position_cap'] <= 0.25
+        assert 'valuation_gt_90_cap_25pct' in result['position_caps_applied']
+
+    def test_narrow_breadth_and_tight_liquidity_caps(self):
+        result = MarketEnvironmentAnalyzer.assess_market_environment(
+            market_sentiment=50,
+            market_valuation=50,
+            breadth_data=[-1.0, -0.5, 0.2, -0.3],
+            trend_data={'score': 70},
+            risk_appetite_data={'score': 65},
+            liquidity_data={'dxy_trend': 'up', 'credit_spread_trend': 'widening'},
+        )
+
+        assert result['position_cap'] <= 0.65
+        assert 'narrow_breadth_cap_65pct' in result['position_caps_applied']
+        assert 'tight_liquidity_cap_65pct' in result['position_caps_applied']
 
 
 # ============================================================

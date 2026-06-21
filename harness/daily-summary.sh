@@ -81,8 +81,16 @@ for symbol in "${WATCHLIST[@]}"; do
     longbridge news "$symbol" --limit 3 > "$NEWS_DIR/${symbol}.txt" 2>/dev/null || echo "No news for $symbol"
 done
 
-# Step 5: Generate value assessment (MUST be before report, so valuation data is available)
-echo "5. Generating value assessment..."
+# Step 5: Generate structured market environment assessment
+echo "5. Generating market environment assessment..."
+MARKET_ENV_FILE="$DAILY_REPORTS_DIR/market-environment-$TODAY.json"
+python3 "$SCRIPT_DIR/market_environment.py" --quotes "$QUOTES_FILE" --output "$MARKET_ENV_FILE" 2>/dev/null || {
+    echo "Warning: Market environment generation failed"
+    echo "{}" > "$MARKET_ENV_FILE"
+}
+
+# Step 6: Generate value assessment (MUST be before report, so valuation data is available)
+echo "6. Generating value assessment..."
 PREDICTION_FILE="$PREDICTIONS_DIR/assessment-$TODAY.json"
 
 python3 "$SCRIPT_DIR/generate_valuation.py" --date "$TODAY" --output "$PREDICTION_FILE" 2>/dev/null || {
@@ -92,8 +100,8 @@ python3 "$SCRIPT_DIR/generate_valuation.py" --date "$TODAY" --output "$PREDICTIO
 
 echo "Predictions saved to: $PREDICTION_FILE"
 
-# Step 6: Generate summary report with valuation ranges
-echo "6. Generating summary report..."
+# Step 7: Generate summary report with valuation ranges
+echo "7. Generating summary report..."
 REPORT_FILE="$DAILY_REPORTS_DIR/report-$TODAY.md"
 
 # Fetch positions data (includes options)
@@ -142,6 +150,20 @@ except:
     fi
 }
 
+MARKET_ENV_SUMMARY=$(python3 -c "
+import json
+try:
+    with open('$MARKET_ENV_FILE') as f:
+        data = json.load(f)
+    a = data.get('assessment', {})
+    caps = ', '.join(a.get('position_caps_applied') or []) or 'none'
+    dims = a.get('dimension_breakdown', {})
+    dim_text = ', '.join('{}:{}'.format(k, v.get('score', 'N/A')) for k, v in dims.items() if isinstance(v, dict) and k != 'sentiment_modifier')
+    print('Score {} | {} | Position cap {} | Caps: {} | Dimensions: {}'.format(a.get('environment_score', 'N/A'), a.get('environment', 'UNKNOWN'), a.get('position_cap', 'N/A'), caps, dim_text))
+except Exception:
+    print('N/A')
+" 2>/dev/null)
+
 cat > "$REPORT_FILE" << EOF
 # 📊 Daily Stock Analysis Summary
 Date: $TODAY
@@ -150,6 +172,8 @@ Generated: $(date)
 ## Market Overview
 - **Market Sentiment:** $MARKET_SENTIMENT
 - **Major Indices:** $MAJOR_INDICES
+- **Five-Factor Environment:** $MARKET_ENV_SUMMARY
+- **Environment Data:** $MARKET_ENV_FILE
 
 ## Watchlist Performance
 | Symbol | Price | Chg% | Volume | Valuation Range | Core Value | Deviation | Moat | Action |
@@ -309,8 +333,8 @@ EOF
 
 echo "Summary report saved to: $REPORT_FILE"
 
-# Step 7: Update metrics
-echo "7. Updating performance metrics..."
+# Step 8: Update metrics
+echo "8. Updating performance metrics..."
 METRICS_FILE="$METRICS_DIR/metrics-$TODAY.json"
 cat > "$METRICS_FILE" << EOF
 {
@@ -318,6 +342,7 @@ cat > "$METRICS_FILE" << EOF
   "metrics": {
     "report_generated": true,
     "predictions_saved": true,
+    "market_environment_saved": true,
     "symbols_analyzed": ${#WATCHLIST[@]}
   }
 }
