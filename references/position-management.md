@@ -16,100 +16,92 @@ Position management determines how much capital to allocate to each stock, when 
 
 ---
 
-## 🎯 Dynamic Position Sizing Based on Market Sentiment
+## 🎯 Dynamic Position Sizing Based on Multi-Factor Market Score
 
 ### Core Concept
 
-Total portfolio position should adapt to market conditions, NOT remain fixed. This follows the contrarian investment principle.
+Total portfolio position should adapt to market conditions, NOT remain fixed. This follows the contrarian investment principle, but the execution must be slow enough to avoid daily whipsaw.
 
-### Market Sentiment to Position Mapping
+### Market Score to Position Mapping
 
 **Data Source:** `longbridge market-temp` command returns:
 - `Temperature` (0-100): Market heat index
 - `Sentiment` (0-100): Market sentiment index
 - `Valuation` (0-100): Valuation level
 
+Use the full multi-factor market score when available. `Sentiment` alone is a fallback input, not the final position signal.
+
 **Position Adjustment Model:**
 
-| Sentiment Range | Market State | Total Position | Cash Reserve | Strategy |
+| Score Range | Market State | Total Position | Cash Reserve | Strategy |
 |-----------------|--------------|----------------|--------------|----------|
-| **0-30** | Extreme Fear | **85-100%** | 0-15% | 🟢 Aggressive buying, seize opportunities |
-| **30-40** | Fear | **70-85%** | 15-30% | 🟢 Selective buying, value hunting |
-| **40-60** | Neutral | **50-70%** | 30-50% | 🟡 Hold positions, selective action |
-| **60-70** | Greed | **30-50%** | 50-70% | 🟡 Selective selling, take profits |
-| **70-100** | Extreme Greed | **10-30%** | 70-90% | 🔴 Aggressive selling, risk off |
+| **80-100** | Extreme Greed | **10-25%** | 75-90% | 🔴 Aggressive selling, risk off |
+| **70-80** | Greed | **25-40%** | 60-75% | 🟡 Selective selling, take profits |
+| **60-70** | Neutral-Bullish | **40-55%** | 45-60% | 🟡 Hold, trim excess risk |
+| **40-60** | Neutral | **50-65%** | 35-50% | ⚪ Hold positions, selective action |
+| **30-40** | Fear | **65-80%** | 20-35% | 🟢 Selective buying, value hunting |
+| **0-30** | Extreme Fear | **80-95%** | 5-20% | 🟢 Aggressive buying, seize opportunities |
 
 **Implementation Formula:**
 
 ```python
-def calculate_target_position(sentiment_index):
+def calculate_raw_target_position(comprehensive_score):
     """
-    Calculate target position percentage based on market sentiment
+    Calculate raw target position percentage based on comprehensive market score.
+    This matches analysis/config.yaml overall.score_to_position midpoints.
     
     Args:
-        sentiment_index: 0-100 from longbridge market-temp
+        comprehensive_score: 0-100 multi-factor market risk/greed score
     
     Returns:
         (target_position_pct, cash_reserve_pct, action)
     """
-    if sentiment_index <= 30:
-        # Extreme Fear: Maximum allocation
-        return (95, 5, 'AGGRESSIVE_BUY')
-    
-    elif sentiment_index <= 40:
-        # Fear: High allocation
-        return (80, 20, 'SELECTIVE_BUY')
-    
-    elif sentiment_index <= 60:
-        # Neutral: Moderate allocation
-        return (60, 40, 'HOLD')
-    
-    elif sentiment_index <= 70:
-        # Greed: Low allocation
-        return (40, 60, 'SELECTIVE_SELL')
-    
+    if comprehensive_score >= 80:
+        return (17.5, 82.5, 'AGGRESSIVE_SELL')
+    elif comprehensive_score >= 70:
+        return (32.5, 67.5, 'SELECTIVE_SELL')
+    elif comprehensive_score >= 60:
+        return (47.5, 52.5, 'HOLD_TRIM')
+    elif comprehensive_score >= 40:
+        return (57.5, 42.5, 'HOLD')
+    elif comprehensive_score >= 30:
+        return (72.5, 27.5, 'SELECTIVE_BUY')
     else:
-        # Extreme Greed: Minimal allocation
-        return (20, 80, 'AGGRESSIVE_SELL')
+        return (87.5, 12.5, 'AGGRESSIVE_BUY')
 
 
-def adjust_position_for_sentiment(current_position, target_position, portfolio_value):
+def weekly_rebalance_target(current_position, raw_target, days_since_last_rebalance):
     """
-    Calculate position adjustment needed
-    
-    Returns:
-        (action, amount_to_adjust, urgency)
+    Convert raw target into a tradable weekly target.
+
+    Rules:
+    - Do not rebalance daily.
+    - Do not trade if the gap is under 5 percentage points.
+    - Move 35% of the gap per rebalance by default.
     """
-    position_diff = current_position - target_position
-    
-    if abs(position_diff) < 5:
-        return ('NO_ACTION', 0, 'LOW')
-    
-    elif position_diff > 0:
-        # Need to reduce position
-        amount_to_sell = (position_diff / 100) * portfolio_value
-        urgency = 'HIGH' if position_diff > 20 else 'MEDIUM'
-        return ('SELL', amount_to_sell, urgency)
-    
-    else:
-        # Need to increase position
-        amount_to_buy = (abs(position_diff) / 100) * portfolio_value
-        urgency = 'HIGH' if abs(position_diff) > 20 else 'MEDIUM'
-        return ('BUY', amount_to_buy, urgency)
+    if days_since_last_rebalance < 5:
+        return current_position
+
+    gap = raw_target - current_position
+    if abs(gap) < 5:
+        return current_position
+
+    return current_position + gap * 0.35
 ```
 
 ### Example Scenarios
 
-**Scenario 1: Extreme Greed (Sentiment = 75)**
+**Scenario 1: Extreme Greed (Score = 82)**
 ```
 Market State: Extreme Greed
-Target Position: 20%
+Raw Target Position: 17.5%
 Current Position: 80% of portfolio
 Portfolio Value: $157,220
 
 Analysis:
-- Need to reduce from 80% to 20%
-- Amount to sell: (80% - 20%) × $157,220 = $94,332
+- Full gap: reduce from 80% to 17.5% = 62.5 percentage points
+- Weekly step: 62.5% × 35% = 21.9 percentage points
+- Amount to sell this week: 21.9% × $157,220 = $34,428
 - Action: AGGRESSIVE_SELL
 - Urgency: HIGH
 
@@ -122,13 +114,14 @@ Recommendation:
 **Scenario 2: Extreme Fear (Sentiment = 25)**
 ```
 Market State: Extreme Fear
-Target Position: 95%
+Raw Target Position: 87.5%
 Current Position: 20% of portfolio
 Portfolio Value: $157,220
 
 Analysis:
-- Need to increase from 20% to 95%
-- Amount to buy: (95% - 20%) × $157,220 = $117,915
+- Full gap: increase from 20% to 87.5% = 67.5 percentage points
+- Weekly step: 67.5% × 35% = 23.6 percentage points
+- Amount to buy this week: 23.6% × $157,220 = $37,101
 - Action: AGGRESSIVE_BUY
 - Urgency: HIGH
 
@@ -142,7 +135,9 @@ Recommendation:
 
 **1. Gradual Adjustment**
 - Don't adjust all at once
-- Scale in/out over 3-5 trading days
+- Rebalance weekly by default
+- Ignore target changes under 5 percentage points
+- Move partially toward target instead of jumping all the way
 - Monitor market conditions during adjustment
 
 **2. Signal Confirmation**
@@ -238,49 +233,50 @@ def check_sector_concentration(portfolio, sector_map):
 
 ### Rule 3: Dynamic Cash Reserve
 
-**IMPORTANT:** Cash reserve is NOT fixed at 10%. It dynamically adjusts based on market sentiment (see Dynamic Position Sizing section above).
+**IMPORTANT:** Cash reserve is NOT fixed at 10%. It dynamically adjusts based on the comprehensive market score and target total position (see Dynamic Position Sizing section above).
 
 **Dynamic Cash Reserve Model:**
 
 | Market State | Cash Reserve | Rationale |
 |--------------|--------------|-----------|
-| Extreme Greed | **70-90%** | Risk off, preserve capital for future opportunities |
-| Greed | **50-70%** | Take profits, build cash buffer |
-| Neutral | **30-50%** | Balanced approach |
-| Fear | **15-30%** | Deploy cash into value opportunities |
-| Extreme Fear | **5-15%** | Maximum deployment into oversold quality stocks |
+| Extreme Greed | **75-90%** | Risk off, preserve capital for future opportunities |
+| Greed | **60-75%** | Take profits, build cash buffer |
+| Neutral-Bullish | **45-60%** | Hold, trim excess risk |
+| Neutral | **35-50%** | Balanced approach |
+| Fear | **20-35%** | Deploy cash into value opportunities |
+| Extreme Fear | **5-20%** | Maximum deployment into oversold quality stocks |
 
 **Implementation:**
 
 ```python
-def calculate_target_cash(sentiment_index, portfolio_value):
+def calculate_target_cash(comprehensive_score, portfolio_value):
     """
-    Calculate target cash reserve based on market sentiment
+    Calculate target cash reserve based on comprehensive market score.
     
     Returns: (target_cash_pct, target_cash_amount)
     """
     # Use the inverse of target position
-    target_position_pct, target_cash_pct, _ = calculate_target_position(sentiment_index)
+    target_position_pct, target_cash_pct, _ = calculate_raw_target_position(comprehensive_score)
     
     target_cash_amount = portfolio_value * (target_cash_pct / 100)
     
     return target_cash_pct, target_cash_amount
 
 
-def calculate_available_cash(portfolio_value, current_cash, sentiment_index):
+def calculate_available_cash(portfolio_value, current_cash, comprehensive_score):
     """
     Calculate cash available for new positions based on dynamic model
     
     Args:
         portfolio_value: Total portfolio value
         current_cash: Current cash balance
-        sentiment_index: Market sentiment (0-100)
+        comprehensive_score: Multi-factor market score (0-100)
     
     Returns:
         (available_cash, target_cash, surplus_deficit)
     """
-    # Get target cash based on sentiment
-    _, target_cash_amount = calculate_target_cash(sentiment_index, portfolio_value)
+    # Get target cash based on comprehensive score
+    _, target_cash_amount = calculate_target_cash(comprehensive_score, portfolio_value)
     
     # Calculate available cash (surplus) or deficit
     surplus_deficit = current_cash - target_cash_amount
@@ -300,31 +296,31 @@ def calculate_available_cash(portfolio_value, current_cash, sentiment_index):
 **Example:**
 
 ```python
-# Scenario: Extreme Greed (Sentiment = 75)
+# Scenario: Extreme Greed (Comprehensive Score = 82)
 portfolio_value = $157,220
 current_cash = $20,720
 
-target_cash_pct = 80%  # From dynamic model
-target_cash_amount = $157,220 × 0.80 = $125,776
+target_cash_pct = 82.5%  # From dynamic model midpoint
+target_cash_amount = $157,220 × 0.825 = $129,707
 
 # Analysis:
 # - Current cash: $20,720
-# - Target cash: $125,776
-# - Deficit: -$105,056
-# - Action: Need to SELL $105,056 worth of stocks to raise cash
+# - Target cash: $129,707
+# - Deficit: -$108,987
+# - Action: Need to raise cash gradually via weekly rebalance
 
-# Scenario: Extreme Fear (Sentiment = 25)
+# Scenario: Extreme Fear (Comprehensive Score = 25)
 portfolio_value = $157,220
 current_cash = $20,720
 
-target_cash_pct = 5%  # From dynamic model
-target_cash_amount = $157,220 × 0.05 = $7,861
+target_cash_pct = 12.5%  # From dynamic model midpoint
+target_cash_amount = $157,220 × 0.125 = $19,653
 
 # Analysis:
 # - Current cash: $20,720
-# - Target cash: $7,861
-# - Surplus: +$12,859
-# - Action: Can deploy $12,859 into stocks
+# - Target cash: $19,653
+# - Surplus: +$1,067
+# - Action: No trade if gap is below the no-trade band
 ```
 
 **Rationale:**
@@ -339,9 +335,9 @@ target_cash_amount = $157,220 × 0.05 = $7,861
 - Emergency fund: Always keep 5% for emergencies (separate from trading cash)
 
 **Dynamic Adjustment:**
-- Market Fear (sentiment < 40): Increase to 15-20%
-- Market Greed (sentiment > 70): Increase to 15-20%
-- Market Neutral (sentiment 40-70): Maintain 10%
+- Fear/Extreme Fear: deploy cash gradually, but keep at least 5% cash
+- Greed/Extreme Greed: raise cash gradually, but keep only highest-conviction exposure
+- Neutral: let individual stock scores drive allocation inside the total-position cap
 
 ---
 
@@ -406,29 +402,29 @@ def calculate_signal_strength(score_components):
 
 ### Market Condition Adjustment
 
-Adjust for overall market environment.
+Adjust individual stock sizing for overall market environment. This multiplier is secondary to the portfolio-level total position cap.
 
 ```python
-def calculate_market_condition(sentiment_index):
+def calculate_market_condition(comprehensive_score):
     """
-    Adjust position based on market sentiment
+    Adjust individual position size based on comprehensive market score.
     
     Args:
-        sentiment_index: 0-100 (from longbridge market-temp)
+        comprehensive_score: 0-100 multi-factor market score
     
     Returns: Multiplier (0.7 to 1.3)
     """
-    if sentiment_index < 30:
+    if comprehensive_score < 30:
         # Extreme fear: Good buying opportunity
         return 1.3
-    elif sentiment_index < 50:
+    elif comprehensive_score < 40:
         # Fear: Slightly bullish
         return 1.1
-    elif sentiment_index < 70:
-        # Neutral/Greed: Standard
+    elif comprehensive_score < 70:
+        # Neutral to neutral-bullish: Standard
         return 1.0
     else:
-        # Extreme greed: Cautious
+        # Greed/extreme greed: Cautious
         return 0.7
 ```
 

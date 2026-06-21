@@ -41,11 +41,24 @@ Market regime analysis determines the current state of the market (greed/fear, b
    - Higher = more expensive
    - Lower = cheaper
 
+**Current authoritative position model:** use the Step 1 multi-factor market score as the final input. `Sentiment` alone is only one dimension. The raw target comes from `analysis/config.yaml` under `overall.score_to_position`, then weekly rebalancing discipline is applied.
+
+| Comprehensive Score | Regime | Raw Position | Cash | Default Action |
+|---------------------|--------|--------------|------|----------------|
+| 80-100 | Extreme Greed | 10-25% | 75-90% | Aggressive Sell |
+| 70-80 | Greed | 25-40% | 60-75% | Selective Sell |
+| 60-70 | Neutral-Bullish | 40-55% | 45-60% | Hold/Trim |
+| 40-60 | Neutral | 50-65% | 35-50% | Hold/Selective |
+| 30-40 | Fear | 65-80% | 20-35% | Selective Buy |
+| 0-30 | Extreme Fear | 80-95% | 5-20% | Aggressive Buy |
+
+**Execution discipline:** rebalance weekly by default, ignore target changes below 5 percentage points, and move partially toward the target instead of jumping all the way in one trade. Daily rebalancing caused excessive turnover in local backtests.
+
 ---
 
 ## Market Regime Classification
 
-### Regime 1: Extreme Greed (Sentiment 70-100)
+### Regime 1: Extreme Greed (Comprehensive Score 80-100)
 
 **Characteristics:**
 - ✅ Markets rallying strongly
@@ -56,8 +69,8 @@ Market regime analysis determines the current state of the market (greed/fear, b
 
 **Position Strategy:**
 ```
-Total Position: 10-30%
-Cash Reserve: 70-90%
+Total Position: 10-25%
+Cash Reserve: 75-90%
 
 Actions:
 🔴 Aggressively sell profitable positions
@@ -72,22 +85,22 @@ Stock Selection:
 - Consider inverse ETFs for hedging
 ```
 
-**Example Portfolio (Sentiment = 75):**
+**Example Portfolio (Comprehensive Score = 82):**
 ```
 Portfolio Value: $157,220
-Target Position: 20% ($31,444)
-Target Cash: 80% ($125,776)
+Target Position: 17.5% ($27,514)
+Target Cash: 82.5% ($129,706)
 
 Holdings:
-├─ Cash: $125,776 (80%)
-├─ CEG.US: $15,000 (10%) - AI infrastructure
-├─ TSLA.US: $10,000 (6%) - Strong fundamentals
-└─ BABA.US: $6,444 (4%) - Value play
+├─ Cash: $129,706 (82.5%)
+├─ CEG.US: $12,000 (7.6%) - AI infrastructure
+├─ TSLA.US: $8,000 (5.1%) - Strong fundamentals
+└─ BABA.US: $7,514 (4.8%) - Value play
 ```
 
 ---
 
-### Regime 2: Greed (Sentiment 60-70)
+### Regime 2: Greed (Comprehensive Score 70-80)
 
 **Characteristics:**
 - ✅ Markets trending upward
@@ -97,8 +110,8 @@ Holdings:
 
 **Position Strategy:**
 ```
-Total Position: 30-50%
-Cash Reserve: 50-70%
+Total Position: 25-40%
+Cash Reserve: 60-75%
 
 Actions:
 🟡 Selectively sell profitable positions
@@ -113,23 +126,23 @@ Stock Selection:
 - Consider taking partial profits
 ```
 
-**Example Portfolio (Sentiment = 65):**
+**Example Portfolio (Comprehensive Score = 75):**
 ```
 Portfolio Value: $157,220
-Target Position: 40% ($62,888)
-Target Cash: 60% ($94,332)
+Target Position: 32.5% ($51,096)
+Target Cash: 67.5% ($106,124)
 
 Holdings:
-├─ Cash: $94,332 (60%)
-├─ CEG.US: $20,000 (13%)
-├─ TSLA.US: $18,000 (11%)
-├─ BABA.US: $15,000 (10%)
-└─ NVDA.US: $9,888 (6%)
+├─ Cash: $106,124 (67.5%)
+├─ CEG.US: $16,000 (10.2%)
+├─ TSLA.US: $13,000 (8.3%)
+├─ BABA.US: $12,000 (7.6%)
+└─ NVDA.US: $10,096 (6.4%)
 ```
 
 ---
 
-### Regime 3: Neutral (Sentiment 40-60)
+### Regime 3: Neutral (Comprehensive Score 40-60)
 
 **Characteristics:**
 - ✅ Markets sideways or mild trends
@@ -139,8 +152,8 @@ Holdings:
 
 **Position Strategy:**
 ```
-Total Position: 50-70%
-Cash Reserve: 30-50%
+Total Position: 50-65%
+Cash Reserve: 35-50%
 
 Actions:
 🟡 Hold existing positions
@@ -155,24 +168,24 @@ Stock Selection:
 - Consider sector rotation
 ```
 
-**Example Portfolio (Sentiment = 50):**
+**Example Portfolio (Comprehensive Score = 50):**
 ```
 Portfolio Value: $157,220
-Target Position: 60% ($94,332)
-Target Cash: 40% ($62,888)
+Target Position: 57.5% ($90,402)
+Target Cash: 42.5% ($66,818)
 
 Holdings:
-├─ Cash: $62,888 (40%)
-├─ CEG.US: $25,000 (16%)
-├─ TSLA.US: $22,000 (14%)
-├─ BABA.US: $20,000 (13%)
-├─ NVDA.US: $15,000 (10%)
-└─ PLTR.US: $12,332 (8%)
+├─ Cash: $66,818 (42.5%)
+├─ CEG.US: $22,000 (14.0%)
+├─ TSLA.US: $20,000 (12.7%)
+├─ BABA.US: $18,000 (11.4%)
+├─ NVDA.US: $16,000 (10.2%)
+└─ PLTR.US: $14,402 (9.2%)
 ```
 
 ---
 
-### Regime 4: Fear (Sentiment 30-40)
+### Regime 4: Fear (Comprehensive Score 30-40)
 
 **Characteristics:**
 - ⚠️ Markets declining
@@ -182,8 +195,8 @@ Holdings:
 
 **Position Strategy:**
 ```
-Total Position: 70-85%
-Cash Reserve: 15-30%
+Total Position: 65-80%
+Cash Reserve: 20-35%
 
 Actions:
 🟢 Selective buying of quality stocks
@@ -198,25 +211,25 @@ Stock Selection:
 - Prioritize defensive sectors
 ```
 
-**Example Portfolio (Sentiment = 35):**
+**Example Portfolio (Comprehensive Score = 35):**
 ```
 Portfolio Value: $157,220
-Target Position: 80% ($125,776)
-Target Cash: 20% ($31,444)
+Target Position: 72.5% ($113,985)
+Target Cash: 27.5% ($43,235)
 
 Holdings:
-├─ Cash: $31,444 (20%)
-├─ CEG.US: $30,000 (19%)
-├─ TSLA.US: $28,000 (18%)
-├─ BABA.US: $25,000 (16%)
-├─ NVDA.US: $22,000 (14%)
-├─ PLTR.US: $15,000 (10%)
-└─ COIN.US: $5,776 (4%)
+├─ Cash: $43,235 (27.5%)
+├─ CEG.US: $23,000 (14.6%)
+├─ TSLA.US: $22,000 (14.0%)
+├─ BABA.US: $21,000 (13.4%)
+├─ NVDA.US: $20,000 (12.7%)
+├─ PLTR.US: $18,000 (11.4%)
+└─ COIN.US: $9,985 (6.4%)
 ```
 
 ---
 
-### Regime 5: Extreme Fear (Sentiment 0-30)
+### Regime 5: Extreme Fear (Comprehensive Score 0-30)
 
 **Characteristics:**
 - 🔴 Markets crashing or deeply oversold
@@ -226,8 +239,8 @@ Holdings:
 
 **Position Strategy:**
 ```
-Total Position: 85-100%
-Cash Reserve: 0-15%
+Total Position: 80-95%
+Cash Reserve: 5-20%
 
 Actions:
 🟢 Aggressive buying of quality stocks
@@ -243,20 +256,21 @@ Stock Selection:
 - Be patient, recovery takes time
 ```
 
-**Example Portfolio (Sentiment = 25):**
+**Example Portfolio (Comprehensive Score = 25):**
 ```
 Portfolio Value: $157,220
-Target Position: 95% ($149,359)
-Target Cash: 5% ($7,861)
+Target Position: 87.5% ($137,568)
+Target Cash: 12.5% ($19,653)
 
 Holdings:
-├─ Cash: $7,861 (5%) - Emergency reserve
-├─ CEG.US: $35,000 (22%)
-├─ TSLA.US: $32,000 (20%)
-├─ BABA.US: $28,000 (18%)
-├─ NVDA.US: $25,000 (16%)
-├─ PLTR.US: $18,000 (11%)
-└─ COIN.US: $11,359 (7%)
+├─ Cash: $19,653 (12.5%) - Emergency reserve
+├─ CEG.US: $23,000 (14.6%)
+├─ TSLA.US: $22,500 (14.3%)
+├─ BABA.US: $22,000 (14.0%)
+├─ NVDA.US: $21,500 (13.7%)
+├─ PLTR.US: $20,000 (12.7%)
+├─ COIN.US: $14,568 (9.3%)
+└─ Other quality candidates: $14,000 (8.9%)
 ```
 
 ---
@@ -268,19 +282,32 @@ Holdings:
 ### Confirmation Checklist
 
 ```python
-def confirm_market_regime(sentiment_index):
+def confirm_market_regime(comprehensive_score, sentiment=None, valuation=None, temperature=None):
     """
     Confirm market regime with multiple indicators
-    
+
     Returns: (confirmed, confidence_level, regime)
     """
     confidence = 0
+
+    def classify_score(score):
+        if score >= 80:
+            return 'EXTREME_GREED'
+        if score >= 70:
+            return 'GREED'
+        if score >= 60:
+            return 'NEUTRAL_BULLISH'
+        if score >= 40:
+            return 'NEUTRAL'
+        if score >= 30:
+            return 'FEAR'
+        return 'EXTREME_FEAR'
     
-    # 1. Sentiment index
-    if sentiment_index < 30:
-        confidence += 1  # Fear confirmed
-    elif sentiment_index > 70:
-        confidence += 1  # Greed confirmed
+    # 1. Comprehensive score is the primary regime input
+    if comprehensive_score < 30:
+        confidence += 1  # Extreme fear confirmed
+    elif comprehensive_score > 80:
+        confidence += 1  # Extreme greed confirmed
     
     # 2. Check major indices (SPY, QQQ)
     # - Are they above/below 200-day MA?
@@ -303,9 +330,9 @@ def confirm_market_regime(sentiment_index):
     # - Analyst upgrades/downgrades
     
     if confidence >= 3:
-        return (True, 'HIGH', classify_regime(sentiment_index))
+        return (True, 'HIGH', classify_score(comprehensive_score))
     elif confidence >= 2:
-        return (True, 'MEDIUM', classify_regime(sentiment_index))
+        return (True, 'MEDIUM', classify_score(comprehensive_score))
     else:
         return (False, 'LOW', 'UNCERTAIN')
 ```
@@ -356,33 +383,36 @@ longbridge market-temp
 ```python
 sentiment = 48  # From market-temp
 target_position_pct = calculate_target_position(sentiment)
-# Returns: (60, 40, 'HOLD') for sentiment = 48
+# Returns: raw target midpoint from analysis/config.yaml
 ```
 
 **Step 3: Compare with Current Position**
 ```python
 current_position_pct = 80  # Your current holdings %
-position_diff = current_position_pct - target_position_pct
-# position_diff = 80 - 60 = 20
+position_diff = current_position_pct - raw_target_position_pct
 ```
 
 **Step 4: Determine Action**
 ```python
-if position_diff > 10:
+if abs(position_diff) < 5:
+    action = 'NO_TRADE'
+    amount = 0
+elif position_diff > 0:
     action = 'SELL'
-    amount = (position_diff / 100) * portfolio_value
-elif position_diff < -10:
-    action = 'BUY'
-    amount = (abs(position_diff) / 100) * portfolio_value
+    weekly_step = position_diff * 0.35
+    amount = (weekly_step / 100) * portfolio_value
 else:
-    action = 'HOLD'
+    action = 'BUY'
+    weekly_step = abs(position_diff) * 0.35
+    amount = (weekly_step / 100) * portfolio_value
 ```
 
-**Step 5: Execute Gradually**
+**Step 5: Execute Weekly**
 - Don't adjust all at once
-- Spread over 3-5 trading days
-- Monitor market conditions
-- Adjust as needed
+- Rebalance weekly by default
+- Ignore gaps under 5 percentage points
+- Move about 35% of the gap per rebalance
+- Monitor market conditions and hard risk caps
 
 ---
 
@@ -390,50 +420,46 @@ else:
 
 ### Scenario: Market Shifts from Greed to Fear
 
-**Before (Sentiment = 70):**
+**Before (Comprehensive Score = 70):**
 ```
-Position: 30%
-Cash: 70%
+Position: 32.5%
+Cash: 67.5%
 ```
 
-**After (Sentiment = 35):**
+**After (Comprehensive Score = 35):**
 ```
-Target Position: 80%
-Target Cash: 20%
+Raw Target Position: 72.5%
+Target Cash: 27.5%
 ```
 
 **Action Plan:**
 ```
-Day 1: Deploy 25% of cash into stocks
-Day 2: Deploy another 25%
-Day 3: Deploy remaining 20%
-Total deployed: 70% of cash → 20% of portfolio
-New position: 30% + 70% = 100% (exceeds target)
-Adjustment: Keep 80% position, reserve 20% cash
+Gap: 72.5% - 32.5% = 40.0 percentage points
+Weekly step: 40.0% × 35% = 14.0 percentage points
+This week: buy 14.0% of portfolio value
+Next week: reassess score and caps before adding more
 ```
 
 ### Scenario: Market Shifts from Fear to Greed
 
-**Before (Sentiment = 30):**
+**Before (Comprehensive Score = 30):**
 ```
-Position: 85%
-Cash: 15%
+Position: 72.5%
+Cash: 27.5%
 ```
 
-**After (Sentiment = 75):**
+**After (Comprehensive Score = 82):**
 ```
-Target Position: 20%
-Target Cash: 80%
+Raw Target Position: 17.5%
+Target Cash: 82.5%
 ```
 
 **Action Plan:**
 ```
-Day 1: Sell 20% of portfolio
-Day 2: Sell another 20%
-Day 3: Sell remaining 25%
-Total sold: 65% of portfolio → cash
-New position: 85% - 65% = 20% (matches target)
-New cash: 15% + 65% = 80% (matches target)
+Gap: 72.5% - 17.5% = 55.0 percentage points
+Weekly step: 55.0% × 35% = 19.25 percentage points
+This week: sell 19.25% of portfolio value
+Next week: reassess score, valuation cap, and ATH risk before selling more
 ```
 
 ---
@@ -442,13 +468,13 @@ New cash: 15% + 65% = 80% (matches target)
 
 ### ❌ Mistake 1: Ignoring Sentiment Shifts
 ```
-Wrong: Keeping 80% position when sentiment shifts from 50 to 75
+Wrong: Keeping 80% position when comprehensive score shifts from 50 to 82
 Result: Large drawdown during market correction
 ```
 
 ### ❌ Mistake 2: Over-reacting to Small Shifts
 ```
-Wrong: Adjusting position when sentiment moves from 48 to 52
+Wrong: Adjusting position when comprehensive score moves from 48 to 52
 Result: Excessive trading, transaction costs
 ```
 
@@ -474,12 +500,15 @@ Result: Ignore proven strategy, large losses
 
 ## Summary: Market Regime Quick Reference
 
-| Sentiment | Regime | Position | Cash | Action | Risk |
-|-----------|--------|----------|------|--------|------|
-| 0-30 | Extreme Fear | 85-100% | 0-15% | 🟢 Aggressive Buy | High (but opportunity) |
-| 30-40 | Fear | 70-85% | 15-30% | 🟢 Selective Buy | Medium-High |
-| 40-60 | Neutral | 50-70% | 30-50% | 🟡 Hold/Selective | Medium |
-| 60-70 | Greed | 30-50% | 50-70% | 🟡 Selective Sell | Medium-High |
-| 70-100 | Extreme Greed | 10-30% | 70-90% | 🔴 Aggressive Sell | High (correction risk) |
+| Comprehensive Score | Regime | Position | Cash | Action | Risk |
+|---------------------|--------|----------|------|--------|------|
+| 0-30 | Extreme Fear | 80-95% | 5-20% | 🟢 Aggressive Buy | High (but opportunity) |
+| 30-40 | Fear | 65-80% | 20-35% | 🟢 Selective Buy | Medium-High |
+| 40-60 | Neutral | 50-65% | 35-50% | 🟡 Hold/Selective | Medium |
+| 60-70 | Neutral-Bullish | 40-55% | 45-60% | 🟡 Hold/Trim | Medium |
+| 70-80 | Greed | 25-40% | 60-75% | 🟡 Selective Sell | Medium-High |
+| 80-100 | Extreme Greed | 10-25% | 75-90% | 🔴 Aggressive Sell | High (correction risk) |
+
+**Rebalancing:** weekly by default. Do not trade if the target gap is under 5 percentage points. Move gradually toward the target unless a hard risk cap is breached.
 
 **Key Principle:** Be fearful when others are greedy, and greedy when others are fearful.

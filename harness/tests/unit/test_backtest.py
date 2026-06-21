@@ -13,7 +13,7 @@ from datetime import datetime
 SKILL_DIR = Path(__file__).parent.parent.parent.parent.resolve()
 sys.path.insert(0, str(SKILL_DIR))
 
-from backtest import Backtest
+from harness.backtest import Backtest
 
 
 class TestBacktest:

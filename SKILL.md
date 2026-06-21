@@ -747,17 +747,19 @@ Resolution:
 
 ### Step 8: Dynamic Position Management Recommendations
 
-**CRITICAL:** Total portfolio position is DYNAMIC, not fixed. Adjust based on market sentiment.
+**CRITICAL:** Total portfolio position is DYNAMIC, not fixed. Adjust based on multi-factor market score, but do not trade every score change. The latest local backtest favors **weekly rebalancing with a no-trade band** over daily stair-step rebalancing.
 
 **Reference:** See [references/market-regime.md](references/market-regime.md) for detailed regime analysis.
 
-#### Step 5.1: Determine Market Regime
+#### Step 8.1: Determine Market Regime
 
 ```bash
 longbridge market-temp
 ```
 
-**Extract sentiment index and determine regime:**
+Use the comprehensive score from Step 1 when available. If only `longbridge market-temp` is available, treat sentiment as a fallback, not the sole driver.
+
+**Score to raw target position:**
 
 | Score Range | Market State | Target Total Position | Target Cash | Action |
 |-------------|--------------|-----------------------|-------------|--------|
@@ -770,40 +772,78 @@ longbridge market-temp
 
 > **Note:** This table is aligned with Step 1.4 (the authoritative source). Hard cap at 95% maximum position, 5% minimum cash reserve. The `comprehensive_score_to_position()` function in the engine implements these midpoints.
 
-#### Step 5.2: Calculate Target Position
+#### Step 8.2: Apply Rebalancing Discipline
+
+**Default cadence:** weekly, not daily.
+
+Local validation using Longbridge daily K-line data from 2024-01-02 to 2026-06-17 showed:
+
+| Strategy | CAGR | Volatility | Sharpe | Max Drawdown | Annual Turnover | Avg Position |
+|----------|------|------------|--------|--------------|-----------------|--------------|
+| Fixed 60% | 28.9% | 23.9% | 1.18 | -22.3% | 0.0x | 60.0% |
+| Current stair-step, daily | 26.0% | 18.8% | 1.32 | -19.8% | 8.6x | 34.6% |
+| Current stair-step, weekly | 26.8% | 18.8% | 1.36 | -18.1% | 4.3x | 34.7% |
+| Smooth linear, daily | 23.6% | 17.3% | 1.31 | -16.4% | 6.0x | 33.6% |
+| Trend core + satellite, weekly | 25.8% | 22.4% | 1.14 | -21.2% | 0.34x | 55.0% |
+
+**Interpretation:** the existing inverse stair-step mapping is useful for reducing drawdown, but daily execution overtrades. Weekly rebalancing preserves the risk benefit while improving Sharpe and reducing drawdown.
+
+**Execution rules:**
 
 ```python
-# Example: Sentiment = 48 (Neutral)
-sentiment = 48
-target_position_pct = 60  # Neutral market
-target_cash_pct = 40
+raw_target = comprehensive_score_to_position(comprehensive_score)
+capped_target = apply_position_caps(raw_target, valuation, is_ath, market_environment)
+
+# Weekly rebalance only. Ignore small changes.
+if days_since_last_rebalance < 5:
+    target_position_pct = current_position_pct
+elif abs(capped_target - current_position_pct) < 5:
+    target_position_pct = current_position_pct
+else:
+    # Move gradually toward target; do not jump the whole distance at once.
+    target_position_pct = current_position_pct + (capped_target - current_position_pct) * 0.35
+```
+
+**Hard discipline:**
+- Do not rebalance daily unless risk caps are breached.
+- Do not trade if target differs by less than 5 percentage points.
+- Do not treat high volatility as an automatic sell signal; use smaller single-stock sizing instead.
+- Keep market-regime caps above individual stock signals: market risk still controls total exposure.
+
+#### Step 8.3: Calculate Target Position
+
+```python
+# Example: Comprehensive score = 48 (Neutral)
+comprehensive_score = 48
+raw_target_position_pct = 57.5  # midpoint from score_to_position
 
 # Compare with current position
 current_position_pct = (market_value / total_assets) * 100
 current_cash_pct = (total_cash / total_assets) * 100
 
-# Calculate adjustment needed
-position_diff = current_position_pct - target_position_pct
+# Weekly/no-trade-band adjustment
+position_diff = current_position_pct - raw_target_position_pct
 ```
 
 **Example Analysis:**
 ```
-Market Sentiment: 48 (Neutral)
+Comprehensive Score: 48 (Neutral)
 Portfolio Value: $157,220
 Current Holdings: $125,776 (80%)
 Current Cash: $31,444 (20%)
 
-Target Position: 60% ($94,332)
-Target Cash: 40% ($62,888)
+Raw Target Position: 57.5% ($90,402)
+Current Position: 80% ($125,776)
 
 Adjustment Needed:
-- Reduce position by: 80% - 60% = 20%
-- Amount to sell: $157,220 × 20% = $31,444
+- Full gap: 80% - 57.5% = 22.5%
+- Weekly step: 22.5% × 35% = 7.9%
+- Amount to sell this rebalance: $157,220 × 7.9% = $12,421
 - Action: SELL
-- Urgency: MEDIUM (position_diff = 20%)
+- Urgency: MEDIUM (weekly rebalance, not one-shot liquidation)
 ```
 
-#### Step 5.3: Select Stocks for Adjustment
+#### Step 8.4: Select Stocks for Adjustment
 
 **If Need to SELL (Position too high):**
 
@@ -823,7 +863,7 @@ Priority order:
 4. **Buy stocks with unfilled upward gaps below price**
 5. **Add to underweight positions** (<5% of portfolio)
 
-#### Step 5.4: Individual Stock Sizing
+#### Step 8.5: Individual Stock Sizing
 
 **Maximum Position Size (Hard Limits):**
 - Single stock: ≤ 15% of portfolio
@@ -836,13 +876,13 @@ Priority order:
 Individual Stock Position = (Target Total Position × Individual Weight)
 
 Where:
-- Target Total Position = Based on market sentiment (from Step 5.1)
+- Target Total Position = Based on comprehensive market score after weekly rebalancing rules (from Step 8.1-8.3)
 - Individual Weight = Stock score / Sum of all scores
 
 Example:
-- Target Total Position: 60% (Neutral market)
+- Target Total Position: 57.5% (Neutral market, raw target)
 - Portfolio Value: $157,220
-- Total investable: $94,332
+- Total investable: $90,402
 
 Stock Scores:
 - CEG.US: 9/10 (highest priority)
@@ -855,15 +895,15 @@ Stock Scores:
 Total Score: 9 + 8 + 8 + 7 + 6 + 3 = 41
 
 Individual Allocations:
-- CEG.US: (9/41) × $94,332 = $20,705 (13.2%)
-- TSLA.US: (8/41) × $94,332 = $18,407 (11.7%)
-- BABA.US: (8/41) × $94,332 = $18,407 (11.7%)
-- NVDA.US: (7/41) × $94,332 = $16,106 (10.3%)
-- PLTR.US: (6/41) × $94,332 = $13,807 (8.8%)
-- COIN.US: (3/41) × $94,332 = $6,904 (4.4%) - or skip
+- CEG.US: (9/41) × $90,402 = $19,844 (12.6%)
+- TSLA.US: (8/41) × $90,402 = $17,639 (11.2%)
+- BABA.US: (8/41) × $90,402 = $17,639 (11.2%)
+- NVDA.US: (7/41) × $90,402 = $15,435 (9.8%)
+- PLTR.US: (6/41) × $90,402 = $13,230 (8.4%)
+- COIN.US: (3/41) × $90,402 = $6,615 (4.2%) - or skip
 ```
 
-#### Step 5.5: Generate Recommendations
+#### Step 8.6: Generate Recommendations
 
 **Template Output:**
 
@@ -871,14 +911,16 @@ Individual Allocations:
 ## Dynamic Position Management Report
 
 ### Market Regime Analysis
-- Sentiment Index: 48 (Neutral)
-- Target Total Position: 60%
-- Target Cash: 40%
+- Comprehensive Score: 48 (Neutral)
+- Raw Target Total Position: 57.5%
+- Rebalance Cadence: Weekly
+- No-Trade Band: 5 percentage points
 
 ### Current vs Target
 - Current Position: 80% ($125,776)
-- Target Position: 60% ($94,332)
-- **Adjustment Needed: SELL $31,444**
+- Raw Target Position: 57.5% ($90,402)
+- Weekly Target Step: 72.1% ($113,355)
+- **Adjustment Needed This Week: SELL $12,421**
 
 ### Stock Selection for Adjustment
 
@@ -1104,20 +1146,21 @@ Position sizing is configured in `analysis/config.yaml` under `overall.score_to_
 > **Note:** The old JSON config format at `~/.config/stock-analysis/config.json` and the inline `dynamic_position_sizing` JSON are deprecated and no longer used. All configuration is now in YAML format under `analysis/config.yaml` and `harness/config.yaml`.
 
 **Customization:**
-- Adjust `target_position_pct` based on risk tolerance
+- Adjust `overall.score_to_position` based on risk tolerance
 - Conservative: Reduce position percentages by 10-20%
 - Aggressive: Increase position percentages by 10-20%
+- Keep weekly rebalancing and the 5 percentage point no-trade band unless backtests justify a change
 
 ### Risk Management
 
-```json
-{
-  "risk_management": {
-    "min_absolute_cash": 5,
-    "max_absolute_cash": 95,
-    "emergency_reserve_pct": 5
-  }
-}
+```yaml
+risk_management:
+  min_absolute_cash: 5
+  max_absolute_position: 95
+  emergency_reserve_pct: 5
+  rebalance_frequency: weekly
+  no_trade_band_pct: 5
+  rebalance_step_pct: 35
 ```
 
 **Hard Limits:**

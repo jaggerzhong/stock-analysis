@@ -4272,6 +4272,28 @@ class StockAnalysisEngine:
 - Technical Score: {analysis['overall_assessment']['score_breakdown']['technical_score']:.1f}/100  
 - Factor Score: {analysis['overall_assessment']['score_breakdown']['factor_score']:.1f}/100
 
+## Conflict Resolution
+"""
+
+        conflict = analysis['overall_assessment'].get('conflict_resolution', {})
+        if conflict:
+            conflicts = conflict.get('conflicts') or []
+            conflict_text = ', '.join(conflicts) if conflicts else 'None'
+            md += f"""**Resolved Action:** {conflict.get('action', 'N/A')}
+**Suggested Position:** {conflict.get('position_pct', 0) * 100:.1f}%
+**Dominant Framework:** {str(conflict.get('dominant_framework', 'N/A')).replace('_', ' ').title()}
+**Conflicts:** {conflict_text}
+
+**Reasoning:**
+"""
+            reasons = conflict.get('reasons') or ['No conflicts detected']
+            for reason in reasons[:3]:
+                md += f"- {reason}\n"
+            md += "\n"
+        else:
+            md += "No conflict resolution data available.\n\n"
+
+        md += """
 ## Risk Analysis
 """
         
