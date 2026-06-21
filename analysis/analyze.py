@@ -11,6 +11,7 @@ import subprocess
 import argparse
 import time
 import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
@@ -897,15 +898,20 @@ class StockAnalyzer:
 
         return stock_data
 
-    def analyze_symbol(self, symbol: str, include_market: bool = True) -> Dict:
+    def analyze_symbol(self, symbol: str, include_market: bool = True,
+                       prefetched_quote: Optional[Dict] = None) -> Dict:
         """Analyze a single stock symbol"""
         print(f"\n{'='*60}")
         print(f"Analyzing: {symbol}")
         print(f"{'='*60}\n")
 
         # Fetch data
-        print("Fetching quote data...")
-        quote = self.fetcher.fetch_quote(symbol)
+        if prefetched_quote is not None:
+            print("Using prefetched quote data...")
+            quote = prefetched_quote
+        else:
+            print("Fetching quote data...")
+            quote = self.fetcher.fetch_quote(symbol)
 
         print("Fetching historical data...")
         kline_data = self.fetcher.fetch_kline(symbol, days=365)
@@ -933,6 +939,9 @@ class StockAnalyzer:
         # Run comprehensive analysis
         print("Running comprehensive analysis...")
         analysis = self.engine.analyze_stock(stock_data)
+
+        # Data quality should cap recommendation strength before reports are rendered.
+        self._apply_data_quality_gate(analysis, financial_data)
 
         # Add market context
         analysis['market_context'] = market_context
@@ -972,6 +981,51 @@ class StockAnalyzer:
             analysis['current_price'] = float(live_price)
 
         return analysis
+
+    @staticmethod
+    def _decision_label(recommendation: str) -> str:
+        """Map model recommendation to conservative decision-support wording."""
+        rec = (recommendation or '').upper()
+        if 'STRONG BUY' in rec:
+            return '小仓位试探 / 等待确认'
+        if rec == 'BUY' or ' BUY' in rec:
+            return '观察买点 / 分批小仓位'
+        if 'HOLD' in rec:
+            return '持有观察'
+        if 'SELL' in rec:
+            return '减仓 / 避免新增'
+        return '避免新增'
+
+    @classmethod
+    def _apply_data_quality_gate(cls, analysis: Dict, financial_data: Optional[Dict]) -> None:
+        """Downgrade aggressive actions when fundamental data is incomplete."""
+        quality = (financial_data or {}).get('data_quality') or {}
+        warnings = quality.get('warnings') or []
+        is_clean = quality.get('is_clean', True)
+
+        overall = analysis.get('overall_assessment', {})
+        original = overall.get('recommendation', 'HOLD')
+
+        gate = {
+            'is_clean': is_clean,
+            'warnings': warnings,
+            'applied': False,
+            'original_recommendation': original,
+        }
+
+        if not is_clean and 'BUY' in str(original).upper():
+            overall['model_signal'] = original
+            overall['recommendation'] = 'HOLD'
+            overall['recommendation_note'] = (
+                'HOLD (data quality gate: fundamentals incomplete, no aggressive entry)'
+            )
+            overall['confidence'] = 'LOW'
+            gate['applied'] = True
+        else:
+            overall['model_signal'] = original
+
+        overall['decision_label'] = cls._decision_label(overall.get('recommendation', original))
+        overall['data_quality_gate'] = gate
 
     def analyze_portfolio(self) -> Dict:
         """Analyze entire portfolio including stocks and options"""
@@ -1134,15 +1188,33 @@ class StockAnalyzer:
         # Fetch market sentiment
         market_sentiment = self.fetcher.fetch_market_sentiment()
 
+        # Batch quote fetch keeps the watchlist path responsive and still lets
+        # each symbol run full k-line, financial, valuation, and scoring logic.
+        batch_quotes = self.fetcher.fetch_batch_quotes(symbols, self.cache)
+
         # Analyze each symbol
         analyses = []
-        for symbol in symbols:
-            try:
-                analysis = self.analyze_symbol(symbol, include_market=False)
-                analyses.append(analysis)
-            except Exception as e:
-                print(f"Error analyzing {symbol}: {e}")
-                continue
+        max_workers = min(6, max(1, len(symbols)))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    self.analyze_symbol,
+                    symbol,
+                    False,
+                    batch_quotes.get(symbol),
+                ): symbol
+                for symbol in symbols
+            }
+            for future in as_completed(futures):
+                symbol = futures[future]
+                try:
+                    analysis = future.result()
+                    analyses.append(analysis)
+                except Exception as e:
+                    print(f"Error analyzing {symbol}: {e}")
+
+        order = {symbol: idx for idx, symbol in enumerate(symbols)}
+        analyses.sort(key=lambda a: order.get(a.get('symbol', ''), len(symbols)))
 
         # Generate report
         report = self._format_watchlist_report(analyses, market_sentiment)
@@ -1187,7 +1259,7 @@ Date: {report_date}
                 change = float(change_raw)
 
             score = overall.get('overall_score', 50)
-            recommendation = overall.get('recommendation', 'HOLD')
+            recommendation = overall.get('decision_label') or self._decision_label(overall.get('recommendation', 'HOLD'))
             risk_level = risk.get('risk_score', 50)
 
             risk_label = 'Low' if risk_level < 40 else 'Medium' if risk_level < 60 else 'High'
@@ -1211,8 +1283,16 @@ Date: {report_date}
 
             # Overall assessment
             overall = analysis.get('overall_assessment', {})
-            md += f"**Recommendation:** {overall.get('recommendation', 'N/A')} "
+            md += f"**Action:** {overall.get('decision_label') or self._decision_label(overall.get('recommendation', 'N/A'))} "
             md += f"({overall.get('confidence', 'N/A')} confidence)\n\n"
+            md += f"**Model Signal:** {overall.get('model_signal') or overall.get('recommendation', 'N/A')}\n\n"
+
+            gate = overall.get('data_quality_gate', {})
+            if gate and not gate.get('is_clean', True):
+                md += "**Data Quality:** Incomplete fundamentals; aggressive entries are capped.\n"
+                for warning in gate.get('warnings', [])[:2]:
+                    md += f"- {warning}\n"
+                md += "\n"
             md += f"**Overall Score:** {overall.get('overall_score', 50):.1f}/100\n\n"
 
             # Score breakdown

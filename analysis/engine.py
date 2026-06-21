@@ -4589,6 +4589,22 @@ class StockAnalysisEngine:
             except (ValueError, TypeError):
                 return default
 
+        def decision_label(recommendation: str) -> str:
+            rec = (recommendation or '').upper()
+            if 'STRONG BUY' in rec:
+                return '小仓位试探 / 等待确认'
+            if rec == 'BUY' or ' BUY' in rec:
+                return '观察买点 / 分批小仓位'
+            if 'HOLD' in rec:
+                return '持有观察'
+            if 'SELL' in rec:
+                return '减仓 / 避免新增'
+            return '避免新增'
+
+        overall = analysis['overall_assessment']
+        action = overall.get('decision_label') or decision_label(overall.get('recommendation', 'HOLD'))
+        data_gate = overall.get('data_quality_gate', {})
+
         # Markdown format
         md = f"""
 # Stock Analysis Report: {analysis['symbol']}
@@ -4596,19 +4612,29 @@ class StockAnalysisEngine:
 **Current Price:** ${analysis['current_price']:.2f}
 
 ## Overall Assessment
-**Recommendation:** **{analysis['overall_assessment']['recommendation']}** ({analysis['overall_assessment']['confidence']} confidence)
-**Overall Score:** {analysis['overall_assessment']['overall_score']:.1f}/100
+**Action:** **{action}** ({overall['confidence']} confidence)
+**Model Signal:** {overall.get('model_signal', overall['recommendation'])}
+**Overall Score:** {overall['overall_score']:.1f}/100
 
 ### Score Breakdown:
-- Risk Score: {analysis['overall_assessment']['score_breakdown']['risk_score']:.1f}/100
-- Valuation Score: {analysis['overall_assessment']['score_breakdown']['valuation_score']:.1f}/100
-- Technical Score: {analysis['overall_assessment']['score_breakdown']['technical_score']:.1f}/100
-- Factor Score: {analysis['overall_assessment']['score_breakdown']['factor_score']:.1f}/100
-
-## Conflict Resolution
+- Risk Score: {overall['score_breakdown']['risk_score']:.1f}/100
+- Valuation Score: {overall['score_breakdown']['valuation_score']:.1f}/100
+- Technical Score: {overall['score_breakdown']['technical_score']:.1f}/100
+- Factor Score: {overall['score_breakdown']['factor_score']:.1f}/100
 """
 
-        conflict = analysis['overall_assessment'].get('conflict_resolution', {})
+        if data_gate and not data_gate.get('is_clean', True):
+            md += """
+## Data Quality Gate
+Fundamental data is incomplete or inconsistent. Aggressive entry signals are capped until the data is verified.
+"""
+            for warning in data_gate.get('warnings', [])[:3]:
+                md += f"- {warning}\n"
+            md += "\n"
+
+        md += "## Conflict Resolution\n"
+
+        conflict = overall.get('conflict_resolution', {})
         if conflict:
             conflicts = conflict.get('conflicts') or []
             conflict_text = ', '.join(conflicts) if conflicts else 'None'
@@ -4881,7 +4907,7 @@ class StockAnalysisEngine:
             symbol = pos.get('symbol', 'N/A')
             oa = pos.get('overall_assessment', {})
             score = oa.get('overall_score', 'N/A')
-            rec = oa.get('recommendation', 'N/A')
+            rec = oa.get('decision_label') or oa.get('recommendation', 'N/A')
             pd = pos.get('position_details', {})
             mv = pd.get('market_value', 0)
             pnl = pd.get('profit_loss', 0)

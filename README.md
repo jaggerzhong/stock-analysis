@@ -44,7 +44,7 @@ stock-analysis/
 
 ## 🎯 固定自选股列表
 
-本skill维护一个固定的自选股列表，包含6只重点关注的股票：
+本 skill 维护一个固定自选股列表，当前以 `references/watchlist.json` 为唯一数据源。当前列表包含 11 只重点关注股票：
 
 | 代码 | 名称 | 行业 | 描述 |
 |------|------|------|------|
@@ -54,15 +54,20 @@ stock-analysis/
 | CEG.US | 星座能源 | Utilities | 核能发电公司，AI数据中心供电合作 |
 | COIN.US | Coinbase | Financials | 加密货币交易所，受益于加密市场回暖 |
 | PLTR.US | Palantir | Technology | 大数据分析公司，AI平台增长强劲 |
+| AAPL.US | 苹果 | Technology | 消费电子巨头，生态系统完善 |
+| DUK.US | 杜克能源 | Utilities | 美国大型电力公司，稳定分红 |
+| GOOGL.US | 谷歌 | Technology | 搜索引擎和云计算龙头，AI研发领先 |
+| HOOD.US | Robinhood | Financials | 互联网券商，加密货币和股票交易平台 |
+| MSFT.US | 微软 | Technology | 云计算和软件巨头，AI战略布局完善 |
 
 **修改自选股列表：**
 编辑 `references/watchlist.json` 文件，添加或删除股票。
 
 **行业分布：**
-- Technology: 3只 (BABA, NVDA, PLTR)
+- Technology: 6只 (BABA, NVDA, AAPL, GOOGL, MSFT, PLTR)
 - Consumer Discretionary: 1只 (TSLA)
-- Utilities: 1只 (CEG)
-- Financials: 1只 (COIN)
+- Utilities: 2只 (CEG, DUK)
+- Financials: 2只 (COIN, HOOD)
 
 ## 快速开始
 
@@ -129,7 +134,8 @@ longbridge --version
 - **作为仓位调整的核心依据**
 
 ### 3. 自选股分析（固定列表）
-- 分析固定的6只自选股（BABA, NVDA, TSLA, CEG, COIN, PLTR）
+- 分析 `references/watchlist.json` 中的固定自选股（当前11只）
+- 批量获取实时 quote，并发执行单股分析，避免逐只串行等待
 - 获取实时行情和最新新闻
 - 分析技术形态和催化剂
 - 提供买入/持有/卖出建议
@@ -404,6 +410,19 @@ longbridge --version
 ### 仓位管理规则
 详见 [references/position-management.md](references/position-management.md)
 
+## 输出口径
+
+系统内部仍保留 `STRONG BUY` / `BUY` / `HOLD` / `SELL` 等模型信号，方便回测和机器读取；用户报告默认显示更保守的动作标签：
+
+| 模型信号 | 用户动作 |
+|----------|----------|
+| STRONG BUY | 小仓位试探 / 等待确认 |
+| BUY | 观察买点 / 分批小仓位 |
+| HOLD / WEAK HOLD | 持有观察 |
+| SELL / STRONG SELL | 减仓 / 避免新增 |
+
+如果财报数据质量校验失败，系统会把激进买入信号降级为 `HOLD`，降低置信度，并在报告中展示数据质量警告。
+
 ## 注意事项
 
 1. **教育用途：** 本skill提供的分析和建议仅供参考，不构成投资建议
@@ -566,7 +585,7 @@ stock-analysis/
 ### 性能指标
 
 - **单股分析时间：** ~1-2秒
-- **自选股分析（6只）：** ~10-15秒
+- **自选股分析（当前11只）：** quote 批量获取，单股完整分析并发执行；实际耗时主要取决于 Longbridge 财报和 K 线接口响应
 - **数据要求：** 200天历史数据最佳
 - **计算方法：** NumPy向量化计算
 
