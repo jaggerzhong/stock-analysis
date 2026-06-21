@@ -1,6 +1,6 @@
 # Stock Analysis Skill
 
-**当前版本：v3.2.0**
+**当前版本：v3.3.0**
 
 智能股票分析系统，整合市场情绪、缺口理论、价值区间和仓位管理策略。
 
@@ -11,7 +11,7 @@ stock-analysis/
 ├── SKILL.md                          # 主文档 - 完整的分析流程
 ├── README.md                         # 本文件
 ├── CHANGELOG.md                      # 更新日志
-├── analysis/                         # 分析引擎 (v3.2.0: DCF/Shiller估值 + 周频动态仓位)
+├── analysis/                         # 分析引擎 (v3.3.0: Skill入口优化 + 报告口径同步)
 │   ├── engine.py                     # 核心分析引擎
 │   ├── analyze.py                    # 命令行分析脚本
 │   └── requirements.txt              # Python依赖
@@ -619,6 +619,12 @@ stock-analysis/
 - **每日harness系统** - 自动复盘和指标调整 (见SKILL.md中Harness部分)
 
 ## 更新日志
+
+- **v3.3.0** (2026-06-21): 🔧 Skill 入口优化 + 报告口径同步
+  - ✨ `SKILL.md` 精简为可执行入口文档，保留权威命令、强制工作流、推荐措辞和仓位纪律
+  - ✨ `analysis/analyze.py` 支持权威自选股和持仓分析入口，统一 watchlist、portfolio、JSON 输出流程
+  - ✨ 报告输出补充数据质量、业务质量、估值、技术和仓位建议字段，和 Skill 工作流保持一致
+  - 🔧 `analysis/engine.py` 增强个股仓位建议、数据质量门控和保守推荐口径
 
 - **v3.2.0** (2026-06-21): 📊 DCF/Shiller估值区间 + 日报估值集成
   - ✨ 新增 DCF 估值模型，基于 FCF、WACC、净债务和股本数计算每股内在价值
