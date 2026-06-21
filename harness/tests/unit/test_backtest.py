@@ -14,6 +14,7 @@ SKILL_DIR = Path(__file__).parent.parent.parent.parent.resolve()
 sys.path.insert(0, str(SKILL_DIR))
 
 from harness.backtest import Backtest
+from harness.strategy_rules import MarketEnvironment, action_weight, adjusted_action
 
 
 class TestBacktest:
@@ -309,6 +310,38 @@ class TestBacktest:
         assert metrics['average_accuracy']['price_direction'] == pytest.approx(
             expected_price_direction_avg, rel=0.01
         )
+
+
+class TestStrategyRules:
+    def test_hostile_market_downgrades_buy_actions(self):
+        env = MarketEnvironment(sentiment=23, valuation=74, temperature=48)
+        assert adjusted_action({"action": "GET_ON_BOARD"}, env) == "BUY_SMALL"
+        assert adjusted_action({"action": "BUY"}, env) == "BUY_SMALL"
+        assert adjusted_action({"action": "BUY_SMALL"}, env) == "WAIT"
+
+    def test_wide_moat_get_on_board_gets_full_weight(self):
+        weight = action_weight(
+            {
+                "action": "GET_ON_BOARD",
+                "moat_width": "Wide",
+                "moat_score": 8.5,
+                "value_trap_score": 0,
+            },
+            MarketEnvironment(sentiment=60, valuation=65),
+        )
+        assert weight == 1.0
+
+    def test_buy_small_trap_threshold_blocks_position(self):
+        weight = action_weight(
+            {
+                "action": "BUY_SMALL",
+                "moat_width": "Narrow",
+                "moat_score": 5.5,
+                "value_trap_score": 25,
+            },
+            MarketEnvironment(sentiment=60, valuation=65),
+        )
+        assert weight == 0.0
 
 
 class TestBacktestEdgeCases:

@@ -1,6 +1,6 @@
 # Stock Analysis Skill
 
-**当前版本：v3.3.0**
+**当前版本：v3.4.0**
 
 智能股票分析系统，整合市场情绪、缺口理论、价值区间和仓位管理策略。
 
@@ -11,7 +11,7 @@ stock-analysis/
 ├── SKILL.md                          # 主文档 - 完整的分析流程
 ├── README.md                         # 本文件
 ├── CHANGELOG.md                      # 更新日志
-├── analysis/                         # 分析引擎 (v3.3.0: Skill入口优化 + 报告口径同步)
+├── analysis/                         # 分析引擎
 │   ├── engine.py                     # 核心分析引擎
 │   ├── analyze.py                    # 命令行分析脚本
 │   └── requirements.txt              # Python依赖
@@ -19,6 +19,8 @@ stock-analysis/
 │   ├── harness-run.sh                # 主运行脚本
 │   ├── daily-summary.sh              # 每日总结
 │   ├── backtest.py                   # 回测脚本
+│   ├── strategy_rules.py             # 策略执行规则：市场过滤 + 信号权重
+│   ├── strategy_backtest.py          # 策略组合回测与新旧规则对比
 │   └── adjust-metrics.py             # 指标调整
 ├── data/                             # 数据存储
 │   ├── daily/                        # 每日报告
@@ -619,6 +621,12 @@ stock-analysis/
 - **每日harness系统** - 自动复盘和指标调整 (见SKILL.md中Harness部分)
 
 ## 更新日志
+
+- **v3.4.0** (2026-06-21): 🧪 Harness 策略规则 + 组合回测
+  - ✨ 新增 `harness/strategy_rules.py`，把市场环境过滤、买入信号降级、护城河和价值陷阱权重分层抽成可复用规则
+  - ✨ 新增 `harness/strategy_backtest.py`，对比原始策略、优化策略和等权自选股，输出收益、回撤、胜率和近期持仓明细
+  - 🔧 在高估值低情绪环境下降级 `GET_ON_BOARD/BUY/BUY_SMALL`，降低风险偏好急转时的买入强度
+  - ✅ 验证：`python3 -m pytest harness/tests/unit/test_backtest.py -q` 18 passed；优化策略最大回撤从 -6.50% 降至 -4.45%
 
 - **v3.3.0** (2026-06-21): 🔧 Skill 入口优化 + 报告口径同步
   - ✨ `SKILL.md` 精简为可执行入口文档，保留权威命令、强制工作流、推荐措辞和仓位纪律
