@@ -1,6 +1,6 @@
 # Stock Analysis Skill
 
-**当前版本：v3.1.0**
+**当前版本：v3.2.0**
 
 智能股票分析系统，整合市场情绪、缺口理论、价值区间和仓位管理策略。
 
@@ -11,7 +11,7 @@ stock-analysis/
 ├── SKILL.md                          # 主文档 - 完整的分析流程
 ├── README.md                         # 本文件
 ├── CHANGELOG.md                      # 更新日志
-├── analysis/                         # 分析引擎 (v3.1.0: 周频动态仓位 + 三层估值)
+├── analysis/                         # 分析引擎 (v3.2.0: DCF/Shiller估值 + 周频动态仓位)
 │   ├── engine.py                     # 核心分析引擎
 │   ├── analyze.py                    # 命令行分析脚本
 │   └── requirements.txt              # Python依赖
@@ -600,6 +600,15 @@ stock-analysis/
 - **每日harness系统** - 自动复盘和指标调整 (见SKILL.md中Harness部分)
 
 ## 更新日志
+
+- **v3.2.0** (2026-06-21): 📊 DCF/Shiller估值区间 + 日报估值集成
+  - ✨ 新增 DCF 估值模型，基于 FCF、WACC、净债务和股本数计算每股内在价值
+  - ✨ 新增 Shiller/CAPE 估值框架，作为有足够历史 EPS 时的周期调整估值锚
+  - ✨ Graham 估值降级为参考锚，不再进入综合估值，避免高增长股票系统性高估
+  - ✨ `daily-summary.sh` 先生成估值 assessment，再把估值区间、核心价值、偏离度、护城河和价值陷阱评分写入日报
+  - 🔧 修复 `calc-index` 市值字段 `mktcap` 未映射导致 DCF 永远不触发的问题
+  - 🔧 修复单模型估值时 DCF 权重未归一化导致核心价值被错误压低的问题
+  - ✅ 验证：`python3 -m pytest` 93 passed，`generate_valuation.py MSFT.US` 成功走 DCF 路径
 
 - **v3.1.0** (2026-06-21): 🎯 周频动态仓位 + Skill 口径同步
   - ✨ 动态仓位更新为“五维综合市场分数 + 周频调仓 + 5个百分点 no-trade band”

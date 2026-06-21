@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from watchlist_utils import load_watchlist
 
 from analysis.engine import (
-    StockData, 
+    StockData,
     StockAnalysisEngine,
     RiskMetricsCalculator,
     ValuationMetricsCalculator,
@@ -32,7 +32,7 @@ from analysis.engine import (
 
 class DataCache:
     """TTL-based cache for longbridge CLI results to avoid redundant fetches."""
-    
+
     def __init__(self, ttl_seconds: int = 300, cache_dir: Optional[str] = None):
         self.ttl = ttl_seconds
         if cache_dir is None:
@@ -40,23 +40,23 @@ class DataCache:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._memory_cache: Dict[str, tuple] = {}
-    
+
     def _key(self, prefix: str, args: str) -> str:
         raw = f"{prefix}:{args}"
         return hashlib.md5(raw.encode()).hexdigest()
-    
+
     def _file_path(self, key: str) -> Path:
         return self.cache_dir / f"{key}.json"
-    
+
     def get(self, prefix: str, args: str) -> Optional[str]:
         key = self._key(prefix, args)
-        
+
         if key in self._memory_cache:
             data, ts = self._memory_cache[key]
             if time.time() - ts < self.ttl:
                 return data
             del self._memory_cache[key]
-        
+
         fp = self._file_path(key)
         if fp.exists():
             try:
@@ -67,21 +67,21 @@ class DataCache:
                     return cached['data']
             except (json.JSONDecodeError, KeyError):
                 pass
-        
+
         return None
-    
+
     def set(self, prefix: str, args: str, data: str):
         key = self._key(prefix, args)
         ts = time.time()
         self._memory_cache[key] = (data, ts)
-        
+
         fp = self._file_path(key)
         try:
             with open(fp, 'w') as f:
                 json.dump({'data': data, 'ts': ts}, f)
         except OSError:
             pass
-    
+
     def clear(self):
         self._memory_cache.clear()
         if self.cache_dir.exists():
@@ -94,10 +94,10 @@ class DataCache:
 
 class LongbridgeDataFetcher:
     """Fetch stock data from Longbridge CLI with caching."""
-    
+
     def __init__(self, cache_ttl: int = 300):
         self.cache = DataCache(ttl_seconds=cache_ttl)
-    
+
     @staticmethod
     def run_command(cmd: List[str]) -> Optional[str]:
         """Run a shell command and return output"""
@@ -120,36 +120,36 @@ class LongbridgeDataFetcher:
         except Exception as e:
             print(f"Exception running command: {e}")
             return None
-    
+
     @staticmethod
     def parse_quote(quote_output: str) -> Union[Dict, List[Dict]]:
         """Parse quote output from longbridge CLI.
-        
+
         Returns:
             - Dict for single-symbol queries (backward compatible)
             - List[Dict] for batch queries (all symbols preserved)
         """
         data = {}
-        
+
         if not quote_output or not quote_output.strip():
             return data
-        
+
         try:
             parsed = json.loads(quote_output.strip())
-            
+
             if isinstance(parsed, list):
                 return parsed  # Return full list for batch queries
             elif isinstance(parsed, dict):
                 return parsed
-            
+
         except json.JSONDecodeError as e:
             print(f"Error parsing quote JSON: {e}")
             print(f"Output preview: {quote_output[:200]}")
         except Exception as e:
             print(f"Error parsing quote: {e}")
-        
+
         return data
-    
+
     @staticmethod
     def parse_batch_quotes(quote_output: str) -> List[Dict]:
         """Parse quote output, always returning a list of quote dicts."""
@@ -159,7 +159,7 @@ class LongbridgeDataFetcher:
         elif isinstance(result, dict):
             return [result] if result else []
         return []
-    
+
     @staticmethod
     def fetch_quote(symbol: str, cache: Optional[DataCache] = None) -> Dict:
         """Fetch current quote for a single symbol. Always returns a Dict."""
@@ -172,27 +172,27 @@ class LongbridgeDataFetcher:
                     return parsed[0]
                 elif isinstance(parsed, dict):
                     return parsed
-        
+
         output = LongbridgeDataFetcher.run_command([
             'longbridge', 'quote', symbol, '--format', 'json'
         ])
-        
+
         if cache and output:
             cache.set('quote', symbol, output)
-        
+
         parsed = LongbridgeDataFetcher.parse_quote(output or '')
         if isinstance(parsed, list) and len(parsed) > 0:
             return parsed[0]
         elif isinstance(parsed, dict):
             return parsed
         return {}
-    
+
     @staticmethod
     def fetch_batch_quotes(symbols: List[str], cache: Optional[DataCache] = None) -> Dict[str, Dict]:
         """Fetch quotes for multiple symbols in one call. Returns {symbol: quote_dict}."""
         if not symbols:
             return {}
-        
+
         cache_key = "batch_" + "_".join(sorted(symbols))
         if cache:
             cached = cache.get('batch_quote', cache_key)
@@ -201,23 +201,23 @@ class LongbridgeDataFetcher:
                     return json.loads(cached)
                 except json.JSONDecodeError:
                     pass
-        
+
         output = LongbridgeDataFetcher.run_command([
             'longbridge', 'quote'] + symbols + ['--format', 'json'
         ])
-        
+
         if cache and output:
             cache.set('batch_quote', cache_key, output)
-        
+
         quotes_list = LongbridgeDataFetcher.parse_batch_quotes(output or '')
         result = {}
         for q in quotes_list:
             sym = q.get('symbol', '')
             if sym:
                 result[sym] = q
-        
+
         return result
-    
+
     @staticmethod
     def fetch_kline(symbol: str, days: int = 200, period: str = 'day', cache: Optional[DataCache] = None) -> List[Dict]:
         """Fetch historical K-line data"""
@@ -229,10 +229,10 @@ class LongbridgeDataFetcher:
                     return json.loads(cached)
                 except json.JSONDecodeError:
                     pass
-        
+
         start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
         end_date = datetime.now().strftime('%Y-%m-%d')
-        
+
         output = LongbridgeDataFetcher.run_command([
             'longbridge', 'kline', 'history', symbol,
             '--start', start_date,
@@ -240,14 +240,14 @@ class LongbridgeDataFetcher:
             '--period', period,
             '--format', 'json'
         ])
-        
+
         if not output or not output.strip():
             print(f"Warning: Empty response for kline {symbol}")
             return []
-        
+
         if cache and output:
             cache.set('kline', cache_key, output)
-        
+
         try:
             data = json.loads(output)
             return data if isinstance(data, list) else []
@@ -255,7 +255,7 @@ class LongbridgeDataFetcher:
             print(f"JSON decode error for kline {symbol}: {e}")
             print(f"Response preview: {output[:200] if output else 'None'}")
             return []
-    
+
     @staticmethod
     def fetch_calc_index(symbol: str, cache: Optional[DataCache] = None) -> Dict:
         """Fetch calculated indexes (PE, PB, market cap, etc.)"""
@@ -266,17 +266,17 @@ class LongbridgeDataFetcher:
                     return json.loads(cached)
                 except json.JSONDecodeError:
                     pass
-        
+
         output = LongbridgeDataFetcher.run_command([
             'longbridge', 'calc-index', symbol, '--format', 'json'
         ])
-        
+
         if not output or not output.strip():
             return {}
-        
+
         if cache and output:
             cache.set('calc_index', symbol, output)
-        
+
         try:
             data = json.loads(output)
             if isinstance(data, list) and len(data) > 0:
@@ -284,7 +284,7 @@ class LongbridgeDataFetcher:
             return data if isinstance(data, dict) else {}
         except json.JSONDecodeError:
             return {}
-    
+
     @staticmethod
     def fetch_valuation(symbol: str, cache: Optional[DataCache] = None) -> Dict:
         """Fetch valuation data (PE percentile, historical range)"""
@@ -295,14 +295,14 @@ class LongbridgeDataFetcher:
                     return json.loads(cached)
                 except json.JSONDecodeError:
                     pass
-        
+
         output = LongbridgeDataFetcher.run_command([
             'longbridge', 'valuation', symbol, '--format', 'json'
         ])
-        
+
         if not output or not output.strip():
             return {}
-        
+
         # Remove "New version" message at end
         lines = output.strip().split('\n')
         json_lines = []
@@ -310,17 +310,17 @@ class LongbridgeDataFetcher:
             if line.startswith('New version'):
                 continue
             json_lines.append(line)
-        
+
         clean_output = '\n'.join(json_lines)
-        
+
         if cache and clean_output:
             cache.set('valuation', symbol, clean_output)
-        
+
         try:
             return json.loads(clean_output)
         except json.JSONDecodeError:
             return {}
-    
+
     @staticmethod
     def fetch_financials(symbol: str, cache: Optional[DataCache] = None) -> Dict:
         """Fetch financial statements (IS, BS, CF) from longbridge financial-report.
@@ -706,12 +706,12 @@ class LongbridgeDataFetcher:
                     return json.loads(cached)
                 except json.JSONDecodeError:
                     pass
-        
+
         output = LongbridgeDataFetcher.run_command(['longbridge', 'market-temp'])
-        
+
         if not output:
             return {}
-        
+
         sentiment = {}
         try:
             lines = output.strip().split('\n')
@@ -728,23 +728,23 @@ class LongbridgeDataFetcher:
                             sentiment['valuation'] = float(numbers[0])
         except Exception as e:
             print(f"Error parsing sentiment: {e}")
-        
+
         if cache and sentiment:
             cache.set('sentiment', 'market', json.dumps(sentiment))
-        
+
         return sentiment
-    
+
     @staticmethod
     def fetch_positions() -> List[Dict]:
         """Fetch current positions"""
         output = LongbridgeDataFetcher.run_command([
             'longbridge', 'positions', '--format', 'json'
         ])
-        
+
         if not output or not output.strip():
             print("Warning: Empty response for positions")
             return []
-        
+
         try:
             data = json.loads(output)
             return data if isinstance(data, list) else []
@@ -756,18 +756,18 @@ class LongbridgeDataFetcher:
 
 class StockAnalyzer:
     """Main stock analyzer integrating all components"""
-    
+
     def __init__(self, cache_ttl: int = 300):
         self.engine = StockAnalysisEngine()
         self.cache = DataCache(ttl_seconds=cache_ttl)
         self.fetcher = LongbridgeDataFetcher(cache_ttl=cache_ttl)
         self.fetcher.cache = self.cache
-    
+
     def prepare_stock_data(self, symbol: str, quote: Dict, kline_data: List[Dict],
                            calc_index: Optional[Dict] = None,
                            financial_data: Optional[Dict] = None) -> StockData:
         """Prepare StockData object from fetched data.
-        
+
         Args:
             symbol: Stock symbol
             quote: Quote data from longbridge quote
@@ -775,19 +775,19 @@ class StockAnalyzer:
             calc_index: Calculated indices (PE, PB, market cap)
             financial_data: Parsed financial statement data from fetch_financials()
         """
-        
+
         # Extract prices from K-line data
         prices = []
         highs = []
         lows = []
         volumes = []
-        
+
         for candle in kline_data:
             prices.append(float(candle.get('close', 0)))
             highs.append(float(candle.get('high', 0)))
             lows.append(float(candle.get('low', 0)))
             volumes.append(float(candle.get('volume', 0)))
-        
+
         # Get current price from quote (prefer live price over stale kline close)
         live_price = quote.get('last') or quote.get('last_done')
         if live_price:
@@ -800,36 +800,37 @@ class StockAnalyzer:
         else:
             current_price = 0
             price_source = 'unavailable'
-        
+
         # Extract market cap from calc_index if available
         market_cap = None
         pe_ratio = None
         pb_ratio = None
-        
+
         if calc_index:
-            if calc_index.get('total_market_value'):
-                market_cap = float(calc_index['total_market_value'])
+            market_cap_raw = calc_index.get('total_market_value') or calc_index.get('mktcap')
+            if market_cap_raw:
+                market_cap = float(market_cap_raw)
             if calc_index.get('pe'):
                 pe_ratio = float(calc_index['pe'])
             if calc_index.get('pb'):
                 pb_ratio = float(calc_index['pb'])
-        
+
         # Fallback to quote data
         if not market_cap and quote.get('market_cap'):
             market_cap = float(quote['market_cap'])
-        
+
         # Calculate EPS from PE ratio if we have it (fallback, replaced by financial_data if available)
         eps = None
         if pe_ratio and pe_ratio > 0 and current_price > 0:
             eps = current_price / pe_ratio
-        
+
         # Use real EPS from financial statements if available (more accurate than PE-derived)
         is_data = financial_data.get('is_data', {}) if financial_data else {}
         bs_data = financial_data.get('bs_data', {}) if financial_data else {}
         cf_data = financial_data.get('cf_data', {}) if financial_data else {}
         growth_data = financial_data.get('growth', {}) if financial_data else {}
         ttm_data = financial_data.get('ttm_data', {}) if financial_data else {}
-        
+
         # TTM EPS takes priority for valuation (annualized across 4 quarters)
         ttm_eps = ttm_data.get('eps')
         if ttm_eps is not None:
@@ -837,7 +838,7 @@ class StockAnalyzer:
         elif is_data.get('eps') is not None:
             # Single-quarter EPS fallback (less accurate for P/E)
             eps = is_data.get('eps')
-        
+
         # Calculate book value per share from PB ratio
         book_value_per_share = None
         if pb_ratio and pb_ratio > 0 and current_price > 0:
@@ -846,7 +847,7 @@ class StockAnalyzer:
         real_bps = bs_data.get('book_value_per_share')
         if real_bps is not None:
             book_value_per_share = real_bps
-        
+
         # Estimate growth rate from price momentum (simplified fallback)
         estimated_growth = None
         if len(prices) >= 200:
@@ -858,7 +859,12 @@ class StockAnalyzer:
         real_rev_growth = growth_data.get('revenue_growth')
         if real_rev_growth is not None and real_rev_growth != 0:
             estimated_growth = real_rev_growth
-        
+
+        # Compute shares outstanding from market_cap / current_price if available
+        shares_outstanding = None
+        if market_cap and current_price and current_price > 0:
+            shares_outstanding = market_cap / current_price
+
         # Extract financial metrics — prefer real data from financial statements
         stock_data = StockData(
             symbol=symbol,
@@ -881,55 +887,56 @@ class StockAnalyzer:
             revenue_growth=real_rev_growth or float(quote.get('revenue_growth', 0)) if quote.get('revenue_growth') else None,
             eps_growth=growth_data.get('eps_growth') or float(quote.get('eps_growth', 0)) if quote.get('eps_growth') else None,
             estimated_growth=estimated_growth,
-            book_value_per_share=book_value_per_share
+            book_value_per_share=book_value_per_share,
+            shares_outstanding=shares_outstanding
         )
-        
+
         # Store financial data provenance for downstream use
         stock_data._financial_period = financial_data.get('latest_period', '') if financial_data else ''
         stock_data._price_source = price_source
-        
+
         return stock_data
-    
+
     def analyze_symbol(self, symbol: str, include_market: bool = True) -> Dict:
         """Analyze a single stock symbol"""
         print(f"\n{'='*60}")
         print(f"Analyzing: {symbol}")
         print(f"{'='*60}\n")
-        
+
         # Fetch data
         print("Fetching quote data...")
         quote = self.fetcher.fetch_quote(symbol)
-        
+
         print("Fetching historical data...")
         kline_data = self.fetcher.fetch_kline(symbol, days=365)
-        
+
         print("Fetching valuation metrics...")
         calc_index = self.fetcher.fetch_calc_index(symbol)
-        
+
         print("Fetching financial statements...")
         financial_data = self.fetcher.fetch_financials(symbol)
-        
+
         if not kline_data:
             print(f"Warning: No historical data available for {symbol}")
             return {"error": "No data available", "symbol": symbol}
-        
+
         # Prepare stock data
         print("Preparing stock data...")
         stock_data = self.prepare_stock_data(symbol, quote, kline_data, calc_index, financial_data)
-        
+
         # Fetch market sentiment for context
         market_context = {}
         if include_market:
             print("Fetching market sentiment...")
             market_context = self.fetcher.fetch_market_sentiment()
-        
+
         # Run comprehensive analysis
         print("Running comprehensive analysis...")
         analysis = self.engine.analyze_stock(stock_data)
-        
+
         # Add market context
         analysis['market_context'] = market_context
-        
+
         # Add quote details
         analysis['quote_details'] = {
             'symbol': symbol,
@@ -946,7 +953,7 @@ class StockAnalyzer:
             '52_week_low': quote.get('week_52_low') or quote.get('low_52_week'),
             'calc_index': calc_index  # PE, PB, market cap from calc-index
         }
-        
+
         # Add financial statement data
         if financial_data:
             analysis['financial_data'] = {
@@ -958,35 +965,35 @@ class StockAnalyzer:
                 'ttm_data': financial_data.get('ttm_data', {}),
                 'data_quality': financial_data.get('data_quality', {}),
             }
-        
+
         # Ensure current_price uses live quote, not stale kline close
         live_price = quote.get('last') or quote.get('last_done')
         if live_price:
             analysis['current_price'] = float(live_price)
-        
+
         return analysis
-    
+
     def analyze_portfolio(self) -> Dict:
         """Analyze entire portfolio including stocks and options"""
         print("\n" + "="*60)
         print("PORTFOLIO ANALYSIS")
         print("="*60 + "\n")
-        
+
         # Fetch positions
         print("Fetching portfolio positions...")
         positions = self.fetcher.fetch_positions()
-        
+
         if not positions:
             print("No positions found")
             return {"error": "No positions found"}
-        
+
         portfolio_analysis = {
             'analysis_date': datetime.now().isoformat(),
             'positions': [],
             'option_positions': [],
             'summary': {}
         }
-        
+
         total_value = 0
         total_pnl = 0
         analyses = []
@@ -1001,32 +1008,32 @@ class StockAnalyzer:
             symbol = position.get('symbol', '')
             if not symbol or symbol in option_symbols:
                 continue
-            
+
             print(f"\nAnalyzing position: {symbol}")
-            
+
             # Get position details from positions data
             quantity = float(position.get('quantity', 0))
             cost_price = float(position.get('cost_price', 0))
-            
+
             # Fetch current quote to get current price
             print(f"  Fetching current price for {symbol}...")
             current_quote = self.fetcher.fetch_quote(symbol)
-            
+
             # Get current price from quote (longbridge uses 'last' field)
             current_price = float(current_quote.get('last', 0)) if current_quote else 0
-            
+
             # Calculate market value and P/L
             market_value = current_price * quantity if current_price > 0 else 0
             pnl = (current_price - cost_price) * quantity if current_price > 0 and cost_price > 0 else 0
             pnl_percent = ((current_price / cost_price) - 1) * 100 if cost_price > 0 else 0
-            
+
             print(f"  Current Price: ${current_price:.2f}")
             print(f"  Market Value: ${market_value:.2f}")
             print(f"  P/L: ${pnl:.2f} ({pnl_percent:+.2f}%)")
-            
+
             total_value += market_value
             total_pnl += pnl
-            
+
             # Run analysis
             analysis = self.analyze_symbol(symbol, include_market=False)
             analysis['position_details'] = {
@@ -1037,7 +1044,7 @@ class StockAnalyzer:
                 'profit_loss': pnl,
                 'pnl_percent': pnl_percent
             }
-            
+
             analyses.append(analysis)
 
         # Analyze option positions
@@ -1066,7 +1073,7 @@ class StockAnalyzer:
             total_value += opt_analysis.get('market_value', 0)
             if opt_analysis.get('pnl') is not None:
                 total_pnl += opt_analysis['pnl']
-        
+
         # Generate portfolio summary
         all_count = len(analyses) + len(option_analyses)
         portfolio_analysis['positions'] = analyses
@@ -1080,53 +1087,53 @@ class StockAnalyzer:
             'total_return_percent': (total_pnl / (total_value - total_pnl) * 100) if total_value > total_pnl else 0,
             'average_score': sum(a.get('overall_assessment', {}).get('overall_score', 50) for a in analyses) / len(analyses) if analyses else 0
         }
-        
+
         # Add risk metrics at portfolio level
         portfolio_analysis['portfolio_risk'] = self._calculate_portfolio_risk(analyses)
-        
+
         return portfolio_analysis
-    
+
     def _calculate_portfolio_risk(self, analyses: List[Dict]) -> Dict:
         """Calculate portfolio-level risk metrics"""
         if not analyses:
             return {}
-        
+
         # Weight-average portfolio metrics
         total_value = sum(a.get('position_details', {}).get('market_value', 0) for a in analyses)
-        
+
         if total_value == 0:
             return {}
-        
+
         weighted_beta = 0
         weighted_volatility = 0
-        
+
         for analysis in analyses:
             market_value = analysis.get('position_details', {}).get('market_value', 0)
             weight = market_value / total_value
-            
+
             beta = analysis.get('risk_analysis', {}).get('beta', 1.0)
             volatility = analysis.get('risk_analysis', {}).get('historical_volatility', 0.3)
-            
+
             if beta:
                 weighted_beta += weight * beta
             if volatility:
                 weighted_volatility += weight * volatility
-        
+
         return {
             'weighted_beta': weighted_beta,
             'weighted_volatility': weighted_volatility,
             'risk_level': 'Low' if weighted_beta < 0.8 else 'Medium' if weighted_beta < 1.2 else 'High'
         }
-    
+
     def generate_watchlist_report(self, symbols: List[str]) -> str:
         """Generate watchlist analysis report"""
         print("\n" + "="*60)
         print("WATCHLIST ANALYSIS")
         print("="*60 + "\n")
-        
+
         # Fetch market sentiment
         market_sentiment = self.fetcher.fetch_market_sentiment()
-        
+
         # Analyze each symbol
         analyses = []
         for symbol in symbols:
@@ -1136,16 +1143,16 @@ class StockAnalyzer:
             except Exception as e:
                 print(f"Error analyzing {symbol}: {e}")
                 continue
-        
+
         # Generate report
         report = self._format_watchlist_report(analyses, market_sentiment)
-        
+
         return report
-    
+
     def _format_watchlist_report(self, analyses: List[Dict], market_sentiment: Dict) -> str:
         """Format watchlist analysis as markdown report"""
         report_date = datetime.now().strftime('%Y-%m-%d')
-        
+
         md = f"""# 📊 Stock Analysis Watchlist Report
 Date: {report_date}
 
@@ -1159,13 +1166,13 @@ Date: {report_date}
 | Symbol | Price | Change | Score | Recommendation | Risk Level |
 |--------|-------|--------|-------|----------------|------------|
 """
-        
+
         for analysis in analyses:
             symbol = analysis.get('symbol', 'N/A')
             quote = analysis.get('quote_details', {})
             overall = analysis.get('overall_assessment', {})
             risk = analysis.get('risk_analysis', {})
-            
+
             price = quote.get('current_price', 'N/A')
             # Handle None or string values for change_rate
             change_raw = quote.get('change_rate')
@@ -1178,13 +1185,13 @@ Date: {report_date}
                     change = 0.0
             else:
                 change = float(change_raw)
-            
+
             score = overall.get('overall_score', 50)
             recommendation = overall.get('recommendation', 'HOLD')
             risk_level = risk.get('risk_score', 50)
-            
+
             risk_label = 'Low' if risk_level < 40 else 'Medium' if risk_level < 60 else 'High'
-            
+
             # Format price
             if price == 'N/A' or price is None:
                 price_str = 'N/A'
@@ -1193,21 +1200,21 @@ Date: {report_date}
                     price_str = f"{float(price):.2f}"
                 except (ValueError, TypeError):
                     price_str = str(price)
-            
+
             md += f"| {symbol} | ${price_str} | {change:+.2f}% | {score:.1f}/100 | {recommendation} | {risk_label} |\n"
-        
+
         md += "\n---\n\n## Detailed Analysis\n\n"
-        
+
         for analysis in analyses:
             symbol = analysis.get('symbol', 'N/A')
             md += f"### {symbol}\n\n"
-            
+
             # Overall assessment
             overall = analysis.get('overall_assessment', {})
             md += f"**Recommendation:** {overall.get('recommendation', 'N/A')} "
             md += f"({overall.get('confidence', 'N/A')} confidence)\n\n"
             md += f"**Overall Score:** {overall.get('overall_score', 50):.1f}/100\n\n"
-            
+
             # Score breakdown
             breakdown = overall.get('score_breakdown', {})
             md += "**Score Breakdown:**\n"
@@ -1215,11 +1222,11 @@ Date: {report_date}
             md += f"- Valuation: {breakdown.get('valuation_score', 50):.1f}/100\n"
             md += f"- Technical: {breakdown.get('technical_score', 50):.1f}/100\n"
             md += f"- Factor: {breakdown.get('factor_score', 50):.1f}/100\n\n"
-            
+
             # Risk analysis
             risk = analysis.get('risk_analysis', {})
             md += "**Risk Metrics:**\n"
-            
+
             # Helper function to format numeric values
             def format_value(value, format_spec=':.2f', default='N/A'):
                 if value is None or value == 'N/A':
@@ -1228,30 +1235,30 @@ Date: {report_date}
                     return f"{float(value)}{format_spec}"
                 except (ValueError, TypeError):
                     return default
-            
+
             sharpe = risk.get('sharpe_ratio')
             md += f"- Sharpe Ratio: {format_value(sharpe, ':.2f')}\n"
-            
+
             max_dd = risk.get('max_drawdown')
             md += f"- Max Drawdown: {format_value(max_dd, ':.2%')}\n"
-            
+
             vol = risk.get('historical_volatility')
             md += f"- Historical Volatility: {format_value(vol, ':.2%')}\n"
-            
+
             risk_score = risk.get('risk_score', 50)
             md += f"- Risk Score: {format_value(risk_score, ':.1f/100', '50.0/100')}\n\n"
-            
+
             # Valuation analysis
             valuation = analysis.get('valuation_analysis', {})
             md += "**Valuation:**\n"
-            
+
             pe = valuation.get('pe_ratio')
             md += f"- P/E Ratio: {format_value(pe, ':.2fx', 'N/A')}\n"
-            
+
             val_score = valuation.get('valuation_score', 50)
             md += f"- Valuation Score: {format_value(val_score, ':.1f/100', '50.0/100')}\n"
             md += f"- Attractiveness: {valuation.get('valuation_attractiveness', 'N/A')}\n\n"
-            
+
             # Technical signals
             tech = analysis.get('technical_analysis', {})
             md += "**Technical Signals:**\n"
@@ -1262,7 +1269,7 @@ Date: {report_date}
             if tech.get('technical_score'):
                 md += f"- Technical Score: {tech['technical_score']:.1f}/100\n"
             md += "\n"
-            
+
             # Factor analysis
             factor = analysis.get('factor_analysis', {})
             md += "**Factor Scores:**\n"
@@ -1270,18 +1277,18 @@ Date: {report_date}
                 score = factor_data.get('score', 50)
                 md += f"- {factor_name.title()}: {score:.1f}/100\n"
             md += f"- Composite: {factor.get('composite_score', 50):.1f}/100\n\n"
-            
+
             md += "---\n\n"
-        
+
         # Add recommendations
         md += "## Top Recommendations\n\n"
-        
+
         # Sort by overall score
         sorted_analyses = sorted(analyses, key=lambda x: x.get('overall_assessment', {}).get('overall_score', 0), reverse=True)
-        
+
         # Top buy candidates
         buy_candidates = [a for a in sorted_analyses if 'BUY' in a.get('overall_assessment', {}).get('recommendation', '')]
-        
+
         if buy_candidates:
             md += "### 📈 Strong Buy Candidates\n\n"
             for i, analysis in enumerate(buy_candidates[:3], 1):
@@ -1291,7 +1298,7 @@ Date: {report_date}
                 md += f"{i}. **{symbol}** (Score: {score:.1f}/100)\n"
                 md += f"   - Valuation: {valuation}\n"
                 md += f"   - Risk: {analysis.get('risk_analysis', {}).get('risk_score', 50):.1f}/100\n\n"
-        
+
         # Risk warnings
         high_risk = [a for a in sorted_analyses if a.get('risk_analysis', {}).get('risk_score', 0) > 60]
         if high_risk:
@@ -1302,23 +1309,23 @@ Date: {report_date}
                 max_dd = analysis.get('risk_analysis', {}).get('max_drawdown', 0)
                 md += f"- **{symbol}** (Risk Score: {risk_score:.1f}/100, Max DD: {max_dd:.2%})\n"
             md += "\n"
-        
+
         md += """---
 
-**Disclaimer:** This report is generated automatically for informational purposes only. 
+**Disclaimer:** This report is generated automatically for informational purposes only.
 Always conduct your own research and consult with a financial advisor before making investment decisions.
 """
-        
+
         return md
-    
+
     def save_report(self, report: str, output_path: str):
         """Save report to file"""
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(report)
-        
+
         print(f"\nReport saved to: {output_file}")
 
 
@@ -1330,11 +1337,11 @@ def main():
     parser.add_argument('--watchlist', action='store_true', help='Analyze default watchlist')
     parser.add_argument('--output', '-o', help='Output file path for report')
     parser.add_argument('--format', choices=['markdown', 'json'], default='markdown', help='Output format')
-    
+
     args = parser.parse_args()
-    
+
     analyzer = StockAnalyzer()
-    
+
     if args.portfolio:
         # Analyze portfolio
         analysis = analyzer.analyze_portfolio()
@@ -1342,12 +1349,12 @@ def main():
             report = json.dumps(analysis, indent=2, default=str)
         else:
             report = analyzer.engine.generate_report(analysis, format='markdown')
-    
+
     elif args.watchlist:
         # Analyze default watchlist from references/watchlist.json
         watchlist = load_watchlist()
         report = analyzer.generate_watchlist_report(watchlist)
-    
+
     elif args.symbols:
         # Analyze specified symbols
         if len(args.symbols) == 1:
@@ -1355,12 +1362,12 @@ def main():
             report = analyzer.engine.generate_report(analysis, format=args.format)
         else:
             report = analyzer.generate_watchlist_report(args.symbols)
-    
+
     else:
         # Default: show help
         parser.print_help()
         return
-    
+
     # Output report
     if args.output:
         analyzer.save_report(report, args.output)

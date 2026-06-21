@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from analysis.analyze import StockAnalyzer
+from analysis.engine import ValuationMetricsCalculator
 from watchlist_utils import load_watchlist
 
 
@@ -47,29 +48,29 @@ def get_symbol_premiums(symbol: str, industry_config: dict) -> dict:
         'thesis': [],
         'matched_industries': []
     }
-    
+
     # Strip market suffix (e.g., '.US', '.HK')
     clean_symbol = symbol.split('.')[0].upper()
-    
+
     industries = industry_config.get('industries', {})
-    
+
     for industry_key, industry_data in industries.items():
         if industry_key.startswith('_'):
             continue  # Skip comments/anchors
-        
+
         symbols = industry_data.get('symbols', [])
         if clean_symbol in [s.upper().split('.')[0] for s in symbols]:
             growth = industry_data.get('growth_premium', 0.0)
             moat = industry_data.get('moat_premium', 0.0)
-            
+
             if growth > 0:
                 result['growth_premium'] += growth
                 result['matched_industries'].append(industry_data.get('name', industry_key))
                 result['thesis'].append(industry_data.get('thesis', ''))
-            
+
             if moat > 0:
                 result['moat_premium'] = max(result['moat_premium'], moat)
-    
+
     return result
 
 
@@ -135,12 +136,12 @@ def _get_industry_ps_ratio(symbol: str, industry_config: dict) -> float:
     """Get industry-average P/S ratio for a symbol."""
     clean = symbol.split('.')[0].upper()
     ps_map = {
-        'NVDA': 20.0, 'AMD': 8.0, 'AVGO': 15.0,
-        'TSLA': 10.0, 'RIVN': 5.0,
-        'BABA': 1.5, 'AMZN': 3.5, 'JD': 0.5,
-        'MSFT': 12.0, 'AAPL': 8.0, 'GOOGL': 6.0, 'GOOG': 6.0,
-        'PLTR': 20.0, 'COIN': 10.0, 'HOOD': 8.0,
-        'DUK': 3.0, 'CEG': 4.0,
+        'NVDA': 10.0, 'AMD': 5.0, 'AVGO': 8.0,
+        'TSLA': 5.0, 'RIVN': 2.5,
+        'BABA': 1.0, 'AMZN': 2.5, 'JD': 0.4,
+        'MSFT': 8.0, 'AAPL': 5.0, 'GOOGL': 4.0, 'GOOG': 4.0,
+        'PLTR': 10.0, 'COIN': 4.0, 'HOOD': 4.0,
+        'DUK': 2.0, 'CEG': 2.5,
     }
     return ps_map.get(clean, 5.0)
 
@@ -162,20 +163,20 @@ def _get_industry_pe_median(symbol: str, industry_config: dict) -> float:
         }
         sector = industry_map.get(clean, 'Technology')
         if sector in benchmarks:
-            return benchmarks[sector].get('median', 20.0)
+            return benchmarks[sector].get('median', 16.0)
     except Exception:
         pass
-    return 20.0
+    return 16.0
 
 
 def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_config: dict = None) -> dict:
     """
     Calculate core value using Three-Layer Model.
-    
+
     Layer 1: Current Value (PE Percentile) - 40% weight
     Layer 2: Growth Premium (Industry Trend) - 35% weight
     Layer 3: Moat Premium (Competitive Barrier) - 25% weight
-    
+
     Returns:
         {
             'pe_percentile': float or None,
@@ -196,12 +197,12 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
     calc_metrics = analysis.get('quote_details', {}).get('calc_index', {})
     tech = analysis.get('technical_analysis', {})
     moat_data = analysis.get('moat_analysis', {})
-    
+
     # Get premiums from industry config
     premiums = get_symbol_premiums(symbol, industry_config or {})
     growth_premium = premiums['growth_premium']
     moat_premium = premiums['moat_premium']
-    
+
     # ============================================================
     # LAYER 1: Current Value (PE Percentile) - 40% weight
     # ============================================================
@@ -209,25 +210,25 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
     pe_median = None
     pe_current = None
     layer1_value = current_price  # Default to current price
-    
+
     if valuation_data:
         pe_data = valuation_data.get('history', {}).get('metrics', {}).get('pe', {})
         overview_pe = valuation_data.get('overview', {}).get('metrics', {}).get('pe', {})
-        
+
         # Extract current PE
         pe_str = overview_pe.get('metric', '')
         if pe_str:
             pe_current = float(pe_str.replace('x', ''))
-        
+
         # Extract historical median
         pe_median = float(pe_data.get('median', 0)) if pe_data.get('median') else None
-        
+
         # Extract percentile from description
         desc = pe_data.get('desc', '')
         match = re.search(r'比近.*?年.*?(\d+\.\d+)%', desc)
         if match:
             pe_percentile = float(match.group(1))
-        
+
         # Calculate PE-based fair value using mean reversion
         # PE percentile interpretation:
         #   - HIGH percentile (>=70): current PE is ABOVE historical median
@@ -242,44 +243,34 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
         #     → use current price as fair value (no strong signal)
         if pe_current and pe_median and current_price > 0:
             eps = current_price / pe_current
-            
+
             if pe_percentile is not None:
-                # Apply PE percentile adjustment (regression toward median)
-                # High PE percentile: the stock is expensive NOW, so we weight toward 
-                # the median PE as a more conservative fair value estimate
                 if pe_percentile >= 80:
-                    # Very high PE: use median PE but with skepticism discount
-                    # The median may itself be inflated (bubble PE history)
-                    skepticism = 0.85  # 15% discount on median-based value
+                    skepticism = 0.80
                     layer1_value = eps * pe_median * skepticism
                 elif pe_percentile >= 60:
-                    # Above-average PE: use median PE with mild skepticism
-                    skepticism = 0.92  # 8% discount
+                    skepticism = 0.88
                     layer1_value = eps * pe_median * skepticism
                 elif pe_percentile >= 40:
-                    # Normal range: use current price
                     layer1_value = current_price
                 elif pe_percentile >= 20:
-                    # Below-average PE: potential value, slight optimism
-                    optimism = 1.05  # 5% premium (stock may be undervalued)
-                    layer1_value = eps * pe_median * optimism
-                else:
-                    # Very low PE: strong value signal but check for value trap
-                    # Don't over-optimize — use median PE directly
                     layer1_value = eps * pe_median
+                else:
+                    skepticism = 0.85
+                    layer1_value = eps * pe_median * skepticism
             else:
                 # No percentile data — use median PE as baseline
                 if pe_median and pe_median > 0:
                     layer1_value = eps * pe_median
                 else:
                     layer1_value = current_price
-    
+
     # ============================================================
     # LAYER 2: Growth Premium (Industry Trend) - ADDITIVE, not multiplicative
     # ============================================================
     # FIX: Previous version used multiplication (layer1 * 1.25 * 1.20 = +50%)
     # This caused systematic overvaluation. Now use ADDITIVE premiums capped at 25%.
-    MAX_TOTAL_PREMIUM = 0.25
+    MAX_TOTAL_PREMIUM = 0.15
     growth_additive = growth_premium
     layer2_growth_value = layer1_value * (1 + growth_additive)
 
@@ -297,11 +288,11 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
         moat_premium = moat_override.get('moat_premium', moat_premium)
 
     if moat_width == 'Wide':
-        moat_premium = max(moat_premium, 0.20)
+        moat_premium = max(moat_premium, 0.15)
     elif moat_width == 'Narrow':
-        moat_premium = max(moat_premium, 0.10)
+        moat_premium = max(moat_premium, 0.08)
     elif moat_width == 'Minimal':
-        moat_premium = max(moat_premium, 0.05)
+        moat_premium = max(moat_premium, 0.03)
 
     moat_additive = moat_premium
     layer3_moat_value = layer1_value * (1 + growth_additive + moat_additive)
@@ -352,7 +343,7 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
             core_value_method += f'+growth{int(growth_additive*100)}%'
         if moat_additive > 0:
             core_value_method += f'+moat{int(moat_additive*100)}%'
-    
+
     return {
         'pe_percentile': pe_percentile,
         'pe_median': pe_median,
@@ -398,21 +389,33 @@ def _get_sector_for_symbol(symbol: str) -> str:
     return sector_map.get(clean, 'Technology')
 
 
+def _classify_price_vs_range(price: float, lower: float, upper: float, mid: float) -> str:
+    """Classify where current price falls relative to valuation range."""
+    if price < lower:
+        return 'Below Range (Undervalued)'
+    elif price < mid:
+        return 'Within Range (Undervalued)'
+    elif price <= upper:
+        return 'Within Range (Fair/Overvalued)'
+    else:
+        return 'Above Range (Overvalued)'
+
+
 def calculate_value_deviation(current_price: float, core_value: float, pe_percentile: float = None,
                                growth_premium: float = 0.0, moat_premium: float = 0.0,
                                symbol: str = '') -> dict:
     """
     Calculate how much price deviates from core value.
-    
+
     Balance between:
     - PE percentile (historical valuation anchor)
     - Deviation (current price vs adjusted core value)
     - Growth/Moat premiums (future potential)
-    
+
     For stocks with strong growth/moat premiums:
     - Give more weight to the adjusted core value
     - PE percentile serves as a warning signal, not a hard rule
-    
+
     Returns:
         {
             'deviation_pct': float,
@@ -426,16 +429,16 @@ def calculate_value_deviation(current_price: float, core_value: float, pe_percen
             'status': 'unknown',
             'action': 'HOLD',
         }
-    
+
     deviation_pct = (current_price - core_value) / core_value
-    
+
     # Determine if we have strong forward-looking premiums
     has_strong_premium = growth_premium >= 0.20 or moat_premium >= 0.15
 
     # When PE percentile is N/A, we lack a valuation anchor.
     # Growth premiums without a PE anchor are speculative — cap buy signals at HOLD.
     no_pe_anchor = pe_percentile is None
-    
+
     # Industry-specific PE percentile adjustment:
     # Utilities and stable financials have naturally high PE percentiles because
     # they're dividend stocks with predictable earnings. A PE percentile of 94%
@@ -467,7 +470,7 @@ def calculate_value_deviation(current_price: float, core_value: float, pe_percen
     else:
         dev_status = 'significant_premium'
         dev_action = 'AVOID'
-    
+
     # Adjust based on PE percentile and premiums
     # FIX: High PE percentile means the stock is EXPENSIVE relative to its history,
     # NOT cheap. So high percentile should make us MORE cautious, not less.
@@ -569,7 +572,7 @@ def calculate_value_deviation(current_price: float, core_value: float, pe_percen
         else:
             status = dev_status
             action = dev_action
-    
+
     return {
         'deviation_pct': round(deviation_pct * 100, 1),
         'status': status,
@@ -580,41 +583,86 @@ def calculate_value_deviation(current_price: float, core_value: float, pe_percen
 def generate_value_assessment(date_str: str, watchlist: list) -> dict:
     """
     Generate value assessment for watchlist symbols.
-    
+
     Uses Three-Layer Valuation Model:
     1. Current Value (PE Percentile): Historical估值锚点
     2. Growth Premium (Industry Trend): 行业趋势溢价
     3. Moat Premium (Competitive Barrier): 护城河溢价
-    
+
     Args:
         date_str: Date string YYYY-MM-DD
         watchlist: List of symbol strings
-        
+
     Returns:
         Value assessment dict
     """
     analyzer = StockAnalyzer()
     assessments = []
-    
+
     # Load industry configuration
     industry_config = load_industry_config()
-    
+
     for symbol in watchlist:
         try:
             analysis = analyzer.analyze_symbol(symbol, include_market=False)
-            
+
             current_price = analysis.get('current_price', 0)
             if not current_price:
                 continue
-            
+
             # Fetch valuation data (PE percentile, historical range)
             print("Fetching valuation data...")
             valuation_data = analyzer.fetcher.fetch_valuation(symbol)
-            
-            # Calculate core value with three-layer model
+
+            # Calculate core value with three-layer model (fallback)
             value_data = calculate_core_value(analysis, valuation_data, industry_config)
-            core_value = value_data['core_value']
-            
+            core_value_layer = value_data['core_value']
+
+            # Calculate DCF + Shiller valuation range (primary anchor)
+            valuation_analysis = analysis.get('valuation_analysis', {})
+            valuation_range = valuation_analysis.get('valuation_range', {})
+            dcf_result = valuation_analysis.get('dcf_result')
+            shiller_result = valuation_analysis.get('shiller_result')
+
+            # Use DCF+Shiller composite as primary core value when available
+            if valuation_range and valuation_range.get('valuation_mid'):
+                core_value = valuation_range['valuation_mid']
+                valuation_lower = valuation_range.get('valuation_lower', core_value * 0.8)
+                valuation_upper = valuation_range.get('valuation_upper', core_value * 1.2)
+                models = valuation_range.get('models', {}) or {}
+                if models.get('dcf') and models.get('shiller'):
+                    core_value_source = 'dcf_shiller'
+                elif models.get('dcf'):
+                    core_value_source = 'dcf'
+                elif models.get('shiller'):
+                    core_value_source = 'shiller'
+                else:
+                    core_value_source = 'valuation_range'
+            else:
+                core_value = core_value_layer
+                core_value_source = value_data.get('core_value_method', 'three_layer')
+                # Build valuation range from three-layer model
+                # Lower bound: conservative PE-anchored value (layer1)
+                # Upper bound: full moat-inclusive value (layer3)
+                l1 = value_data.get('layer1_value', core_value)
+                l3 = value_data.get('layer3_moat_value', core_value * 1.2)
+                if l1 and l3:
+                    valuation_lower = round(min(l1, core_value * 0.85), 2)
+                    valuation_upper = round(max(l3, core_value * 1.15), 2)
+                else:
+                    # Fallback: 15% band around core value
+                    valuation_lower = round(core_value * 0.85, 2)
+                    valuation_upper = round(core_value * 1.15, 2)
+                # Construct valuation_range dict for JSON output
+                valuation_range = {
+                    'valuation_lower': valuation_lower,
+                    'valuation_mid': core_value,
+                    'valuation_upper': valuation_upper,
+                    'margin_of_safety': round((core_value - current_price) / core_value, 4) if core_value > 0 else 0,
+                    'price_vs_range': _classify_price_vs_range(current_price, valuation_lower, valuation_upper, core_value),
+                    'source': core_value_source,
+                }
+
             # Calculate deviation using PE percentile + premiums
             deviation = calculate_value_deviation(
                 current_price,
@@ -624,41 +672,67 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
                 value_data.get('layer3_moat_premium', 0),
                 symbol=symbol
             )
-            
+
+            # Override deviation with valuation_range bounds if available
+            if valuation_lower and valuation_upper:
+                if current_price < valuation_lower:
+                    deviation['status'] = 'below_range'
+                    deviation['action'] = 'GET_ON_BOARD' if not _is_stable_sector(symbol) else 'BUY'
+                elif current_price < valuation_lower * 1.05:
+                    deviation['status'] = 'near_lower_bound'
+                    deviation['action'] = 'BUY'
+                elif current_price < core_value:
+                    deviation['status'] = 'undervalued'
+                    deviation['action'] = 'BUY_SMALL'
+                elif current_price <= core_value * 1.05:
+                    deviation['status'] = 'fair'
+                    deviation['action'] = 'HOLD'
+                elif current_price <= valuation_upper:
+                    deviation['status'] = 'slight_premium'
+                    deviation['action'] = 'WAIT'
+                elif current_price <= valuation_upper * 1.10:
+                    deviation['status'] = 'premium'
+                    deviation['action'] = 'WAIT'
+                else:
+                    deviation['status'] = 'above_range'
+                    deviation['action'] = 'AVOID'
+                deviation['deviation_pct'] = round((current_price - core_value) / core_value * 100, 1)
+
             # Value trap check
             trap = analysis.get('value_trap_analysis', {})
             trap_score = trap.get('trap_score', 0)
-            
+
             # Industry-specific value trap exemption:
             # Utilities and stable financials rarely have value traps — their
             # business model is inherently stable (regulated monopolies).
             # High trap_score for these sectors is usually a false positive.
             is_stable = _is_stable_sector(symbol)
             effective_trap_threshold = 50 if is_stable else 30
-            
+
             # Adjust action based on value trap
             if trap_score >= effective_trap_threshold and deviation['action'] in ('GET_ON_BOARD', 'BUY', 'BUY_SMALL'):
                 deviation['action'] = 'AVOID'
                 deviation['status'] = 'value_trap'
-            
+
             # Data quality check — if financial data has warnings, flag them
             financial_data = analysis.get('financial_data', {})
             data_quality = financial_data.get('data_quality', {})
             dq_warnings = data_quality.get('warnings', [])
             dq_is_clean = data_quality.get('is_clean', True)
-            
+
             if not dq_is_clean and deviation['action'] in ('GET_ON_BOARD', 'BUY', 'BUY_SMALL'):
                 deviation['action'] = 'HOLD'
                 deviation['status'] = 'data_warning'
-            
+
             # Format PE percentile for display
             pe_pct_display = f"{value_data['pe_percentile']:.0f}%" if value_data['pe_percentile'] else 'N/A'
-            
-            # Build assessment with three-layer details
+
+            # Build assessment with three-layer + DCF/Shiller details
             assessment = {
                 'symbol': symbol,
                 'current_price': round(current_price, 2),
                 'core_value': round(core_value, 2),
+                'core_value_source': core_value_source,
                 'value_methods': value_data['core_value_method'],
                 'deviation_pct': deviation['deviation_pct'],
                 'status': deviation['status'],
@@ -669,6 +743,7 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
                 'moat_width': value_data.get('moat_width', 'None'),
                 'moat_score': value_data.get('moat_score', 5),
                 'value_trap_score': trap_score,
+                'valuation_range': valuation_range,
                 'valuation_details': {
                     'pe_percentile': value_data.get('pe_percentile'),
                     'pe_median': value_data.get('pe_median'),
@@ -679,12 +754,17 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
                     'layer3_moat_premium': value_data.get('layer3_moat_premium'),
                     'layer3_moat_value': value_data.get('layer3_moat_value'),
                     'no_pe_anchor': value_data.get('no_pe_anchor', False),
+                    'dcf_value': dcf_result.get('dcf_value') if dcf_result else None,
+                    'dcf_upper': dcf_result.get('dcf_upper') if dcf_result else None,
+                    'dcf_lower': dcf_result.get('dcf_lower') if dcf_result else None,
+                    'shiller_pe': shiller_result.get('shiller_pe') if shiller_result else None,
+                    'shiller_intrinsic_mid': shiller_result.get('shiller_intrinsic_mid') if shiller_result else None,
                 },
                 'thesis': value_data.get('thesis', []),
                 'matched_industries': value_data.get('matched_industries', []),
             }
             assessments.append(assessment)
-            
+
             # Print summary with three-layer breakdown
             action_emoji = {
                 'GET_ON_BOARD': '🚀',
@@ -695,12 +775,22 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
                 'AVOID': '❌',
             }
             emoji = action_emoji.get(deviation['action'], '➡️')
-            
+
             dq_flag = ' ⚠️' if not dq_is_clean else ''
-            
-            # Build three-layer display
-            if value_data.get('no_pe_anchor'):
+
+            # Build three-layer + DCF/Shiller display
+            if value_data.get('no_pe_anchor') and core_value_source != 'dcf_shiller':
                 layer_info = "⚠️ No PE anchor — core value = current price (growth premiums suspended)"
+            elif core_value_source in ('dcf_shiller', 'dcf', 'shiller'):
+                vr = valuation_range or {}
+                dcv = dcf_result
+                label = 'DCF+Shiller' if core_value_source == 'dcf_shiller' else core_value_source.upper()
+                layer_info = f"{label}: ${core_value:.0f}"
+                if dcv and dcv.get('dcf_value'):
+                    layer_info += f" (DCF: ${dcv['dcf_value']:.0f}"
+                    layer_info += f" [{dcv['dcf_lower']:.0f}-{dcv['dcf_upper']:.0f}])"
+                if vr.get('valuation_lower') and vr.get('valuation_upper'):
+                    layer_info += f" Range: ${vr['valuation_lower']:.0f}-${vr['valuation_upper']:.0f}"
             else:
                 layer_info = f"L1: ${value_data.get('layer1_value', current_price):.0f}"
                 if value_data.get('layer2_growth_premium', 0) > 0:
@@ -714,19 +804,19 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
             if dq_warnings:
                 for w in dq_warnings[:2]:
                     print(f"      ⚠️ Data: {w}")
-            
+
         except Exception as e:
             print(f"  ⚠️  Failed to assess {symbol}: {e}", file=sys.stderr)
             continue
-    
+
     # Sort by deviation (most undervalued first)
     assessments.sort(key=lambda x: x['deviation_pct'])
-    
+
     return {
         'date': date_str,
         'assessment_date': datetime.now().isoformat(),
-        'engine_version': '3.0-value',
-        'philosophy': 'Value investing: assess core value, measure price deviation, decide WAIT or GET_ON_BOARD',
+        'engine_version': '3.2.0-dcf-shiller',
+        'philosophy': 'Value investing: DCF+Shiller composite (55/45), Graham reference-only, three-layer fallback',
         'watchlist_assessments': assessments,
     }
 
@@ -738,42 +828,42 @@ def main():
     parser.add_argument('--output', '-o', help='Output JSON file path')
     parser.add_argument('symbols', nargs='*', default=None)
     args = parser.parse_args()
-    
+
     print("=" * 70)
-    print("VALUE ASSESSMENT ENGINE v3.0")
+    print("VALUE ASSESSMENT ENGINE v3.2.0 (DCF+Shiller Composite)")
     print("=" * 70)
-    print("Philosophy: Find core value, measure price deviation, decide action")
+    print("Philosophy: DCF 55% + Shiller P/E 45%, Graham reference-only, three-layer fallback")
     print("-" * 70)
-    
+
     symbols = args.symbols if args.symbols else load_watchlist()
-    
+
     result = generate_value_assessment(args.date, symbols)
-    
+
     print("-" * 70)
     print(f"\n📊 Summary ({len(result['watchlist_assessments'])} stocks assessed)")
-    
+
     # Categorize
     onboard = [a for a in result['watchlist_assessments'] if a['action'] == 'GET_ON_BOARD']
     buy = [a for a in result['watchlist_assessments'] if a['action'] == 'BUY']
     wait = [a for a in result['watchlist_assessments'] if a['action'] in ('WAIT', 'AVOID')]
-    
+
     if onboard:
         print(f"\n🚀 GET ON BOARD ({len(onboard)}):")
         for a in onboard:
             print(f"   {a['symbol']}: {a['deviation_pct']:.1f}% below core value")
-    
+
     if buy:
         print(f"\n✅ BUY ({len(buy)}):")
         for a in buy:
             print(f"   {a['symbol']}: {a['deviation_pct']:.1f}% below core value")
-    
+
     if wait:
         print(f"\n⏳ WAIT/AVOID ({len(wait)}):")
         for a in wait:
             print(f"   {a['symbol']}: {a['deviation_pct']:+.1f}% vs core value")
-    
+
     output = json.dumps(result, indent=2)
-    
+
     if args.output:
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
         with open(args.output, 'w') as f:

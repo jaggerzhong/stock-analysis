@@ -81,8 +81,19 @@ for symbol in "${WATCHLIST[@]}"; do
     longbridge news "$symbol" --limit 3 > "$NEWS_DIR/${symbol}.txt" 2>/dev/null || echo "No news for $symbol"
 done
 
-# Step 5: Generate summary report
-echo "5. Generating summary report..."
+# Step 5: Generate value assessment (MUST be before report, so valuation data is available)
+echo "5. Generating value assessment..."
+PREDICTION_FILE="$PREDICTIONS_DIR/assessment-$TODAY.json"
+
+python3 "$SCRIPT_DIR/generate_valuation.py" --date "$TODAY" --output "$PREDICTION_FILE" 2>/dev/null || {
+    echo "Warning: Valuation generation failed, using fallback"
+    echo "{}" > "$PREDICTION_FILE"
+}
+
+echo "Predictions saved to: $PREDICTION_FILE"
+
+# Step 6: Generate summary report with valuation ranges
+echo "6. Generating summary report..."
 REPORT_FILE="$DAILY_REPORTS_DIR/report-$TODAY.md"
 
 # Fetch positions data (includes options)
@@ -98,6 +109,39 @@ python3 "$SCRIPT_DIR/option-analysis.py" --positions "$POSITIONS_FILE" --output 
     OPTION_REPORT_FILE=""
 }
 
+# Helper to extract valuation range for a symbol from the prediction JSON
+get_valuation_for_symbol() {
+    local sym="$1"
+    local pred_file="$2"
+    if [ -f "$pred_file" ] && [ -s "$pred_file" ]; then
+        python3 -c "
+import json, sys
+try:
+    with open('$pred_file') as f:
+        data = json.load(f)
+    for a in data.get('watchlist_assessments', []):
+        if a['symbol'] == '$sym':
+            v = a.get('valuation_range', {}) or {}
+            lo = v.get('valuation_lower', '')
+            hi = v.get('valuation_upper', '')
+            cv = a.get('core_value', '')
+            src = a.get('core_value_source', '')
+            act = a.get('action', '')
+            dev = a.get('deviation_pct', '')
+            ts = a.get('value_trap_score', 0)
+            mw = a.get('moat_width', 'None')
+            # Format: lower|upper|core|source|action|deviation|trap_score|moat
+            print(f'{lo}|{hi}|{cv}|{src}|{act}|{dev}|{ts}|{mw}')
+            sys.exit(0)
+    print('|||||||')
+except:
+    print('|||||||')
+" 2>/dev/null
+    else
+        echo '|||||||'
+    fi
+}
+
 cat > "$REPORT_FILE" << EOF
 # 📊 Daily Stock Analysis Summary
 Date: $TODAY
@@ -108,40 +152,66 @@ Generated: $(date)
 - **Major Indices:** $MAJOR_INDICES
 
 ## Watchlist Performance
-| Symbol | Price | Change | Volume | 52-Week High | 52-Week Low | Recommendation |
-|--------|-------|--------|--------|--------------|-------------|----------------|
+| Symbol | Price | Chg% | Volume | Valuation Range | Core Value | Deviation | Moat | Action |
+|--------|-------|------|--------|-----------------|------------|-----------|------|--------|
 EOF
 
-# Parse quotes JSON and add rows (simplified)
+# Parse quotes and valuation JSON and add rows
 for symbol in "${WATCHLIST[@]}"; do
-    # Extract price and change from quotes file (simplified)
     PRICE="N/A"
     CHANGE="N/A"
     VOLUME="N/A"
-    
+
     if [ -f "$QUOTES_FILE" ]; then
-        # Using jq if available
         if command -v jq &> /dev/null; then
-            PRICE=$(jq -r ".[] | select(.symbol == \"$symbol\") | .last_done" "$QUOTES_FILE" 2>/dev/null || echo "N/A")
-            CHANGE=$(jq -r ".[] | select(.symbol == \"$symbol\") | .change_rate" "$QUOTES_FILE" 2>/dev/null || echo "N/A")
-            VOLUME=$(jq -r ".[] | select(.symbol == \"$symbol\") | .volume" "$QUOTES_FILE" 2>/dev/null || echo "N/A")
+            PRICE=$(jq -r ".[] | select(.symbol == \"$symbol\") | .last_done // .last // \"N/A\"" "$QUOTES_FILE" 2>/dev/null || echo "N/A")
+            CHANGE=$(jq -r ".[] | select(.symbol == \"$symbol\") | .change_percentage // .change_rate // \"N/A\"" "$QUOTES_FILE" 2>/dev/null || echo "N/A")
+            VOLUME=$(jq -r ".[] | select(.symbol == \"$symbol\") | .volume // \"N/A\"" "$QUOTES_FILE" 2>/dev/null || echo "N/A")
         fi
     fi
-    
-    # Generate recommendation based on price change (simplified)
-    if [[ "$CHANGE" =~ ^[+-]?[0-9]*\.?[0-9]+$ ]]; then
-        if (( $(echo "$CHANGE > 2" | bc -l 2>/dev/null || echo "0") )); then
-            RECOMMENDATION="Consider taking profits"
-        elif (( $(echo "$CHANGE < -2" | bc -l 2>/dev/null || echo "0") )); then
-            RECOMMENDATION="Potential buying opportunity"
-        else
-            RECOMMENDATION="Hold"
-        fi
+
+    # Get valuation range from prediction JSON
+    VAL_DATA=$(get_valuation_for_symbol "$symbol" "$PREDICTION_FILE")
+    VAL_LOWER=$(echo "$VAL_DATA" | cut -d'|' -f1)
+    VAL_UPPER=$(echo "$VAL_DATA" | cut -d'|' -f2)
+    CORE_VALUE=$(echo "$VAL_DATA" | cut -d'|' -f3)
+    VAL_SOURCE=$(echo "$VAL_DATA" | cut -d'|' -f4)
+    VAL_ACTION=$(echo "$VAL_DATA" | cut -d'|' -f5)
+    VAL_DEV=$(echo "$VAL_DATA" | cut -d'|' -f6)
+    TRAP_SCORE=$(echo "$VAL_DATA" | cut -d'|' -f7)
+    MOAT=$(echo "$VAL_DATA" | cut -d'|' -f8)
+
+    # Format valuation range display
+    if [ -n "$VAL_LOWER" ] && [ "$VAL_LOWER" != "" ]; then
+        VAL_RANGE_DISPLAY="\$$VAL_LOWER - \$$VAL_UPPER"
     else
-        RECOMMENDATION="Insufficient data"
+        VAL_RANGE_DISPLAY="N/A"
     fi
-    
-    echo "| $symbol | $PRICE | $CHANGE | $VOLUME | N/A | N/A | $RECOMMENDATION |" >> "$REPORT_FILE"
+
+    if [ -n "$CORE_VALUE" ] && [ "$CORE_VALUE" != "" ]; then
+        CORE_DISPLAY="\$$CORE_VALUE"
+    else
+        CORE_DISPLAY="N/A"
+    fi
+
+    if [ -n "$VAL_DEV" ] && [ "$VAL_DEV" != "" ]; then
+        DEV_DISPLAY="${VAL_DEV}%"
+    else
+        DEV_DISPLAY="N/A"
+    fi
+
+    # Format action with emoji
+    case "$VAL_ACTION" in
+        GET_ON_BOARD) ACTION_DISPLAY="🚀 Buy" ;;
+        BUY) ACTION_DISPLAY="✅ Buy" ;;
+        BUY_SMALL) ACTION_DISPLAY="➕ Add" ;;
+        HOLD) ACTION_DISPLAY="➡️ Hold" ;;
+        WAIT) ACTION_DISPLAY="⏳ Wait" ;;
+        AVOID) ACTION_DISPLAY="❌ Avoid" ;;
+        *) ACTION_DISPLAY="$VAL_ACTION" ;;
+    esac
+
+    echo "| $symbol | $PRICE | ${CHANGE}% | $VOLUME | $VAL_RANGE_DISPLAY | $CORE_DISPLAY | $DEV_DISPLAY | $MOAT | $ACTION_DISPLAY |" >> "$REPORT_FILE"
 done
 
 cat >> "$REPORT_FILE" << EOF
@@ -158,21 +228,47 @@ for symbol in "${WATCHLIST[@]}"; do
     PRICE="N/A"
     CHANGE="N/A"
     VOLUME="N/A"
-    
+
     if [ -f "$QUOTES_FILE" ]; then
         if command -v jq &> /dev/null; then
             PRICE=$(jq -r ".[] | select(.symbol == \"$symbol\") | .last_done // .last // \"N/A\"" "$QUOTES_FILE" 2>/dev/null || echo "N/A")
-            CHANGE=$(jq -r ".[] | select(.symbol == \"$symbol\") | .change_rate // \"N/A\"" "$QUOTES_FILE" 2>/dev/null || echo "N/A")
+            CHANGE=$(jq -r ".[] | select(.symbol == \"$symbol\") | .change_percentage // .change_rate // \"N/A\"" "$QUOTES_FILE" 2>/dev/null || echo "N/A")
             VOLUME=$(jq -r ".[] | select(.symbol == \"$symbol\") | .volume // \"N/A\"" "$QUOTES_FILE" 2>/dev/null || echo "N/A")
         fi
     fi
-    
+
+    # Get valuation data for this symbol
+    VAL_DATA=$(get_valuation_for_symbol "$symbol" "$PREDICTION_FILE")
+    VAL_LOWER=$(echo "$VAL_DATA" | cut -d'|' -f1)
+    VAL_UPPER=$(echo "$VAL_DATA" | cut -d'|' -f2)
+    CORE_VALUE=$(echo "$VAL_DATA" | cut -d'|' -f3)
+    VAL_SOURCE=$(echo "$VAL_DATA" | cut -d'|' -f4)
+    VAL_ACTION=$(echo "$VAL_DATA" | cut -d'|' -f5)
+    VAL_DEV=$(echo "$VAL_DATA" | cut -d'|' -f6)
+    TRAP_SCORE=$(echo "$VAL_DATA" | cut -d'|' -f7)
+    MOAT=$(echo "$VAL_DATA" | cut -d'|' -f8)
+
+    # Format valuation display
+    VALUATION_SECTION=""
+    if [ -n "$VAL_LOWER" ] && [ "$VAL_LOWER" != "" ]; then
+        VALUATION_SECTION="
+- **估值区间:** \$${VAL_LOWER} - \$${VAL_UPPER} (核心价值: \$${CORE_VALUE})
+- **偏离度:** ${VAL_DEV}%
+- **估值方法:** ${VAL_SOURCE}
+- **护城河:** ${MOAT}
+- **价值陷阱评分:** ${TRAP_SCORE}/100
+- **估值建议:** ${VAL_ACTION}"
+    else
+        VALUATION_SECTION="
+- **估值数据:** 暂不可用（请验证财务数据或等待下次更新）"
+    fi
+
     cat >> "$REPORT_FILE" << EOF
 
 #### $symbol
 - **Price:** $PRICE
 - **Change:** $CHANGE%
-- **Volume:** $VOLUME
+- **Volume:** $VOLUME${VALUATION_SECTION}
 - **Catalysts:** See news in ${NEWS_DIR}/${symbol}.txt
 EOF
 done
@@ -212,17 +308,6 @@ See predictions file: $PREDICTIONS_DIR/assessment-$TODAY.json
 EOF
 
 echo "Summary report saved to: $REPORT_FILE"
-
-# Step 6: Generate value assessment for tomorrow
-echo "6. Generating value assessment..."
-PREDICTION_FILE="$PREDICTIONS_DIR/assessment-$TODAY.json"
-
-python3 "$SCRIPT_DIR/generate_valuation.py" --date "$TODAY" --output "$PREDICTION_FILE" 2>/dev/null || {
-    echo "Warning: Valuation generation failed, using fallback"
-    echo "{}" > "$PREDICTION_FILE"
-}
-
-echo "Predictions saved to: $PREDICTION_FILE"
 
 # Step 7: Update metrics
 echo "7. Updating performance metrics..."

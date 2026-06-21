@@ -29,11 +29,12 @@ risk:
 
 valuation:
   weights:
-    pe: 0.20
-    peg: 0.25
-    p_fcf: 0.20
-    ev_ebitda: 0.20
-    dcf: 0.15
+    dcf: 0.25
+    shiller: 0.25
+    pe: 0.15
+    peg: 0.15
+    p_fcf: 0.10
+    ev_ebitda: 0.10
   
   sector_pe_benchmarks:
     Technology:
@@ -214,9 +215,9 @@ value_trap:
     medium: 15
   
   wacc_params:
-    risk_free_rate: 0.045
+    risk_free_rate: 0.05
     market_risk_premium: 0.06
-    default_cost_of_debt: 0.05
+    default_cost_of_debt: 0.055
     default_tax_rate: 0.25
 
 overall:
