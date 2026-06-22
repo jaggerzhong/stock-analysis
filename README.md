@@ -1,6 +1,6 @@
 # Stock Analysis Skill
 
-**当前版本：v3.5.0**
+**当前版本：v3.6.0**
 
 智能股票分析系统，整合市场情绪、缺口理论、价值区间和仓位管理策略。
 
@@ -14,8 +14,10 @@ stock-analysis/
 ├── analysis/                         # 分析引擎
 │   ├── engine.py                     # 核心分析引擎
 │   ├── analyze.py                    # 命令行分析脚本
+│   ├── serenity_chokepoint.py        # 架构卡口/Serenity-style 研究覆盖层
 │   └── requirements.txt              # Python依赖
 ├── harness/                          # 持续改进系统
+│   ├── stock-harness.sh              # 独立命名的 harness 入口
 │   ├── harness-run.sh                # 主运行脚本
 │   ├── daily-summary.sh              # 每日总结
 │   ├── backtest.py                   # 回测脚本
@@ -42,7 +44,8 @@ stock-analysis/
     ├── value-trap-detection.md       # 价值陷阱检测
     ├── multi-factor-sentiment.md     # 多因子市场情绪
     ├── market-regime.md              # 市场状态分析
-    └── conflict-resolution.md        # 策略冲突解决
+    ├── conflict-resolution.md        # 策略冲突解决
+    └── serenity-chokepoint-framework.md # 架构卡口研究框架
 ```
 
 ## 🎯 固定自选股列表
@@ -96,6 +99,20 @@ longbridge --version
 
 在任何支持 AI 的环境中，使用以下触发词：
 
+**两类核心分析入口：**
+
+| 你想做什么 | 可以这样说 | 对应工具 |
+|------------|------------|----------|
+| 常规股票/持仓分析 | `分析自选股` / `分析我的持仓` / `分析 NVDA.US` / `给我仓位建议` | `python3 analysis/analyze.py --watchlist` / `--portfolio` / `SYMBOL` |
+| Serenity 架构卡口分析 | `用 Serenity 框架看 NVDA.US` / `用架构卡口框架分析自选股` / `找自选股里最像 chokepoint 的标的` | `python3 analysis/serenity_chokepoint.py --watchlist` / `SYMBOL` |
+| 持续复盘和回测 | `跑今日 stock harness` / `生成日报` / `跑回测` / `调整指标` | `./harness/stock-harness.sh --daily` / `--backtest` / `--adjust` |
+
+**推荐组合用法：**
+
+```text
+先用 Serenity 架构卡口框架筛选自选股，再对排名靠前的标的做常规股票分析和仓位建议
+```
+
 **🎯 快速自选股分析（推荐）：**
 - "分析自选股"
 - "analyze watchlist"
@@ -117,7 +134,22 @@ longbridge --version
 - "Gap analysis"
 - "Watchlist review"
 
+**架构卡口 / Serenity 触发词：**
+- "用 Serenity 框架看 NVDA.US"
+- "用架构卡口框架分析自选股"
+- "分析 CEG.US 是不是 AI 电力 chokepoint"
+- "帮我找自选股里最像 chokepoint 的标的"
+- "判断 PLTR.US 有没有被市场错分类"
+- "用 Serenity 框架分析 AI infrastructure 受益股"
+
 ## 核心功能
+
+### 0. 架构卡口研究覆盖层
+- 独立工具：`python3 analysis/serenity_chokepoint.py --watchlist`
+- 适用场景：AI infrastructure、供应链瓶颈、产业架构迁移、市场错分类、主题重估
+- 核心方法：架构位置 → chokepoint 稀缺性 → 证据分层 → 分类纠错 → 财务验证 → 资金流解锁 → 负面筛选
+- 输出定位：研究优先级和 thesis 压力测试，不直接替代估值、技术面或仓位管理
+- 后续动作：再运行 `python3 analysis/analyze.py ...` 进行市场环境、估值、技术和仓位分析
 
 ### 1. 动态仓位管理 🎯 **核心创新**
 - **根据五维综合市场分数动态调整总仓位**
@@ -398,6 +430,11 @@ longbridge --version
 
 ## 技术细节
 
+### 工具边界
+- `analysis/analyze.py`: 当前主工具，负责 Longbridge 数据、估值、技术、多因子和仓位建议
+- `analysis/serenity_chokepoint.py`: 新增研究覆盖层，只做架构卡口 thesis 评分和证据分层
+- `harness/stock-harness.sh`: 之前 harness 系统的独立命名入口，负责日报、回测、指标调整
+
 ### 数据来源
 - **市场数据：** Longbridge CLI (`longbridge quote`, `longbridge kline history`)
 - **持仓数据：** Longbridge CLI (`longbridge positions`, `longbridge portfolio`)
@@ -622,6 +659,13 @@ stock-analysis/
 - **每日harness系统** - 自动复盘和指标调整 (见SKILL.md中Harness部分)
 
 ## 更新日志
+
+- **v3.6.0** (2026-06-22): 🧭 Serenity 架构卡口覆盖层 + 工具隔离
+  - ✨ 新增 `analysis/serenity_chokepoint.py`，用架构迁移、chokepoint 稀缺性、证据分层、分类纠错、财务验证、资金流解锁和负面筛选做 thesis 压力测试
+  - ✨ 新增 `references/serenity-chokepoint-framework.md`，沉淀 Serenity-style 投资框架并说明和主分析流程的边界
+  - ✨ 新增 `harness/stock-harness.sh`，把日报、回测和指标调整 harness 独立命名，避免和主分析工具混用
+  - 📚 更新 README 和 SKILL 入口说明，明确常规分析、架构卡口分析、持续复盘三类调用方式
+  - ✅ 验证：`serenity_chokepoint.py` 编译通过，示例 JSON 输出通过，`stock-harness.sh --help` 通过
 
 - **v3.5.0** (2026-06-21): 🌡️ 五维市场环境 + Daily Harness 接入
   - ✨ `MarketEnvironmentAnalyzer` 升级为五维评分：估值、趋势、市场宽度、风险偏好、流动性

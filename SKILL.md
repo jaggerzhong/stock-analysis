@@ -37,6 +37,21 @@ python3 analysis/analyze.py BABA.US NVDA.US TSLA.US
 python3 analysis/analyze.py AAPL.US --format json -o analysis.json
 ```
 
+Use the isolated Serenity-style chokepoint overlay when the user asks about architecture shifts, AI infrastructure, supply-chain bottlenecks, thematic re-rating, or whether the market is misclassifying a company:
+
+```bash
+cd /Users/Jagger/.agents/skills/stock-analysis
+
+# Score the full watchlist through the architecture/chokepoint lens
+python3 analysis/serenity_chokepoint.py --watchlist
+
+# Score selected symbols and include a user thesis/theme
+python3 analysis/serenity_chokepoint.py NVDA.US CEG.US --thesis "AI infrastructure power and compute bottlenecks"
+
+# JSON output for downstream review
+python3 analysis/serenity_chokepoint.py NVDA.US --format json
+```
+
 Quick data commands are allowed for lightweight user questions:
 
 ```bash
@@ -58,6 +73,17 @@ For watchlist, portfolio, or buy/sell requests, follow this order:
 6. Technical timing: RSI, MA trend, momentum, support/resistance, gap analysis, ATR stop.
 7. Conflict resolution: market regime > business quality > valuation > technicals > short-term news.
 8. Position management: total exposure target first, then individual symbol sizing.
+
+For architecture/chokepoint requests, run this overlay before the normal workflow:
+
+1. Architecture shift: identify the stack layer: compute, cloud/platform, power, AI application, financial rails, consumer/device, or unclassified.
+2. Chokepoint test: supply tightness, substitution difficulty, and whether the market still misunderstands the node.
+3. Evidence tiering: confirmed, reported, ecosystem mapping, or inference. Never promote inference to confirmed fact.
+4. Category correction: state whether the company is being priced as the wrong type of business.
+5. Validation path: identify the financial or operating evidence needed: capacity, prepayment, guidance, qualification, orders, pipeline growth, margins.
+6. Capital-flow unlock: index inclusion, coverage, large holders, ADR/Nasdaq access, or liquidity path.
+7. Negative screen: dilution, float unlocks, weak contracts, logo-only partnerships, or retail-exit financing.
+8. Then run `analysis/analyze.py` for market regime, valuation, technical timing, and position sizing. The chokepoint overlay can raise research priority, but it does not override data-quality gates or risk limits.
 
 ## Recommendation Wording
 
@@ -135,10 +161,17 @@ Use this structure for user-facing reports:
 - Harness config: `harness/config.yaml`.
 - Generated reports and data: `harness/data/` and `data/` are ignored by git.
 
+## Tool Boundaries
+
+- `analysis/analyze.py`: primary value-aware stock and portfolio analyzer.
+- `analysis/serenity_chokepoint.py`: isolated architecture/chokepoint research overlay. It does not run portfolio sizing, Longbridge fetches, or harness jobs.
+- `harness/stock-harness.sh`: isolated continuous review harness for daily reports, backtests, and metric adjustment. It is separate from both analysis tools.
+
 ## Reference Files
 
 - Market regime and position sizing: `references/market-regime.md`, `references/position-management.md`.
 - Value framework: `references/moat-analysis.md`, `references/roic-analysis.md`, `references/value-trap-detection.md`, `references/value-zone.md`.
+- Architecture/chokepoint overlay: `references/serenity-chokepoint-framework.md`.
 - Technical framework: `references/gap-theory.md`, `references/technical-indicators.md`.
 - Quant engine details: `analysis/README.md`, `references/risk-metrics.md`, `references/valuation-metrics.md`, `references/multi-factor-model.md`.
 - Validation and harness: `harness/README.md`, `harness/FINAL_OPTIMIZATION_REPORT.md`.
@@ -147,10 +180,10 @@ Use this structure for user-facing reports:
 
 ```bash
 cd /Users/Jagger/.agents/skills/stock-analysis/harness
-./harness-run.sh --daily
-./harness-run.sh --backtest
-./harness-run.sh --adjust
-./harness-run.sh --report
+./stock-harness.sh --daily
+./stock-harness.sh --backtest
+./stock-harness.sh --adjust
+./stock-harness.sh --report
 ```
 
 Use the harness for continuous review, not as an auto-trading system. Review generated reports before making portfolio decisions.
