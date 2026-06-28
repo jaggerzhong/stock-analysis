@@ -149,6 +149,11 @@ longbridge --version
 - 适用场景：AI infrastructure、供应链瓶颈、产业架构迁移、市场错分类、主题重估
 - 核心方法：架构位置 → chokepoint 稀缺性 → 证据分层 → 分类纠错 → 财务验证 → 资金流解锁 → 负面筛选
 - 输出定位：研究优先级和 thesis 压力测试，不直接替代估值、技术面或仓位管理
+- 新输出字段：
+  - `research_priority`: 标的或主题是否值得继续研究
+  - `investment_confidence`: 当前证据和财务验证是否足以进入估值/仓位判断
+  - `evidence_tier`: 当前 thesis 主要证据等级；Tier 3/4 只能提高研究优先级，不能直接形成高投资置信度
+- `--thesis` 只作为用户研究上下文，不再直接参与每只候选股的关键词分类，避免把无关标的误重分类为 AI、power 或 compute 节点
 - 后续动作：再运行 `python3 analysis/analyze.py ...` 进行市场环境、估值、技术和仓位分析
 
 ### 1. 动态仓位管理 🎯 **核心创新**
@@ -432,7 +437,7 @@ longbridge --version
 
 ### 工具边界
 - `analysis/analyze.py`: 当前主工具，负责 Longbridge 数据、估值、技术、多因子和仓位建议
-- `analysis/serenity_chokepoint.py`: 新增研究覆盖层，只做架构卡口 thesis 评分和证据分层
+- `analysis/serenity_chokepoint.py`: 研究覆盖层，只做架构卡口 thesis 评分、证据分层、研究优先级和投资置信度分离
 - `harness/stock-harness.sh`: 之前 harness 系统的独立命名入口，负责日报、回测、指标调整
 
 ### 数据来源
@@ -446,6 +451,15 @@ longbridge --version
 
 ### 价值区间计算
 详见 [references/value-zone.md](references/value-zone.md)
+
+### 产业溢价口径
+
+三层估值模型区分两套 premium：
+
+- `raw_growth_premium` / `raw_moat_premium`: 来自产业配置、护城河覆盖或人工 override 的原始解释值
+- `effective_growth_premium` / `effective_moat_premium` / `effective_total_premium`: 经过总上限和风险门槛处理后的生效值
+
+下游动作、偏离度判断和报告结论使用 effective premium；raw premium 只用于解释为什么某个主题或护城河可能值得研究。这样可以避免热门产业叙事在证据不足时直接推高估值和买入信号。
 
 ### 仓位管理规则
 详见 [references/position-management.md](references/position-management.md)
@@ -659,6 +673,14 @@ stock-analysis/
 - **每日harness系统** - 自动复盘和指标调整 (见SKILL.md中Harness部分)
 
 ## 更新日志
+
+- **v3.8.0** (2026-06-28): 🧭 产业 thesis 证据门 + premium 生效口径
+  - ✨ `analysis/serenity_chokepoint.py` 将 `research_priority` 与 `investment_confidence` 拆开，低证据 thesis 可以提高研究优先级，但不能自动变成高投资置信度
+  - 🔧 `--thesis` 不再进入候选股分类文本池，避免用户输入的 AI/power/compute 关键词污染所有标的的架构层级评分
+  - ✨ `harness/generate_valuation.py` 新增 raw/effective premium 字段，并让下游估值动作使用 cap 后的 effective premium
+  - 🧪 新增 `harness/tests/unit/test_industry_framework.py`，覆盖 thesis 污染、低证据置信度和 premium cap 口径
+  - 📚 更新 README、SKILL 和 Serenity 框架参考，明确证据等级、研究优先级、投资置信度和产业溢价边界
+  - ✅ 验证：`python3 -m pytest harness/tests/unit -q` 107 passed；`python3 -m compileall analysis harness watchlist_utils.py` 通过；skill quick validate 通过
 
 - **v3.7.0** (2026-06-28): 🧠 策略轮动优化 + 回测日期修复
   - ✨ `harness/strategy_rules.py` 新增科技退潮识别：当 `QQQ/SPY` 和 `SMH/SPY` 同时转弱时，自动降级 AI、半导体、crypto、fintech 和高 beta 标的买入信号

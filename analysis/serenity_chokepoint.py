@@ -73,9 +73,12 @@ def load_candidates(symbols: Optional[Iterable[str]]) -> List[Candidate]:
     return result
 
 
-def text_blob(candidate: Candidate, thesis: str = "") -> str:
+def text_blob(candidate: Candidate, thesis: str = "", include_thesis: bool = False) -> str:
+    fields = [candidate.symbol, candidate.name, candidate.sector, candidate.description, candidate.moat_notes, " ".join(candidate.moat_types)]
+    if include_thesis:
+        fields.append(thesis)
     return " ".join(
-        [candidate.symbol, candidate.name, candidate.sector, candidate.description, candidate.moat_notes, " ".join(candidate.moat_types), thesis]
+        fields
     ).lower()
 
 
@@ -143,7 +146,36 @@ def score_candidate(candidate: Candidate, thesis: str = "") -> Dict:
     else:
         tier = "info-only / avoid"
 
-    return {"layer": layer, "scores": scores, "total": total, "tier": tier}
+    if total >= 24:
+        research_priority = "high"
+    elif total >= 18:
+        research_priority = "medium"
+    else:
+        research_priority = "low"
+
+    if evidence_quality >= 4:
+        evidence_tier = "2 reported"
+    elif evidence_quality >= 3:
+        evidence_tier = "3 ecosystem mapping"
+    else:
+        evidence_tier = "4 inference"
+
+    if total >= 28 and evidence_quality >= 4 and financial_validation >= 4:
+        investment_confidence = "high"
+    elif total >= 21 and evidence_quality >= 3 and financial_validation >= 3:
+        investment_confidence = "medium"
+    else:
+        investment_confidence = "low"
+
+    return {
+        "layer": layer,
+        "scores": scores,
+        "total": total,
+        "tier": tier,
+        "research_priority": research_priority,
+        "investment_confidence": investment_confidence,
+        "evidence_tier": evidence_tier,
+    }
 
 
 def evidence_table(candidate: Candidate, assessment: Dict) -> List[Dict[str, str]]:
@@ -171,8 +203,8 @@ def format_markdown(candidates: List[Candidate], thesis: str = "") -> str:
 
     lines.extend([
         "## Summary",
-        "| Symbol | Layer | Score | Tier | Key Read |",
-        "|--------|-------|-------|------|----------|",
+        "| Symbol | Layer | Score | Research | Confidence | Tier | Key Read |",
+        "|--------|-------|-------|----------|------------|------|----------|",
     ])
 
     assessments = []
@@ -181,7 +213,8 @@ def format_markdown(candidates: List[Candidate], thesis: str = "") -> str:
         assessments.append((candidate, assessment))
         key_read = candidate.description or candidate.moat_notes or "needs manual thesis input"
         lines.append(
-            f"| {candidate.symbol} | {assessment['layer']} | {assessment['total']}/35 | {assessment['tier']} | {key_read} |"
+            f"| {candidate.symbol} | {assessment['layer']} | {assessment['total']}/35 | "
+            f"{assessment['research_priority']} | {assessment['investment_confidence']} | {assessment['tier']} | {key_read} |"
         )
 
     for candidate, assessment in assessments:
@@ -190,6 +223,9 @@ def format_markdown(candidates: List[Candidate], thesis: str = "") -> str:
             f"## {candidate.symbol} - {candidate.name}",
             f"- Architecture position: {assessment['layer']}",
             f"- Conviction tier: {assessment['tier']} ({assessment['total']}/35)",
+            f"- Research priority: {assessment['research_priority']}",
+            f"- Investment confidence: {assessment['investment_confidence']}",
+            f"- Evidence gate: {assessment['evidence_tier']}",
             f"- Description: {candidate.description or 'N/A'}",
             f"- Moat notes: {candidate.moat_notes or 'N/A'}",
             "",

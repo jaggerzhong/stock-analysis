@@ -37,6 +37,15 @@ The useful question is not only "is this cheap?" but:
 
 Never promote tier 3 or tier 4 evidence into tier 1 language.
 
+## Decision Gates
+
+Separate research interest from investment confidence:
+
+- `research_priority`: how urgently to investigate the thesis.
+- `investment_confidence`: whether verified evidence and financial validation justify using the thesis in valuation or sizing.
+
+Tier 3 ecosystem mapping and tier 4 inference can raise research priority, but they should not create high investment confidence or bypass valuation, data-quality, or portfolio-risk gates.
+
 ## Scorecard
 
 Each dimension is scored 0-5:

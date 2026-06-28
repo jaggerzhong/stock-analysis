@@ -202,6 +202,7 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
     premiums = get_symbol_premiums(symbol, industry_config or {})
     growth_premium = premiums['growth_premium']
     moat_premium = premiums['moat_premium']
+    raw_growth_premium = growth_premium
 
     # ============================================================
     # LAYER 1: Current Value (PE Percentile) - 40% weight
@@ -294,6 +295,7 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
     elif moat_width == 'Minimal':
         moat_premium = max(moat_premium, 0.03)
 
+    raw_moat_premium = moat_premium
     moat_additive = moat_premium
     layer3_moat_value = layer1_value * (1 + growth_additive + moat_additive)
 
@@ -304,6 +306,7 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
         growth_additive *= scale
         moat_additive *= scale
         total_premium = MAX_TOTAL_PREMIUM
+        layer2_growth_value = layer1_value * (1 + growth_additive)
         layer3_moat_value = layer1_value * (1 + total_premium)
 
     # ============================================================
@@ -349,9 +352,14 @@ def calculate_core_value(analysis: dict, valuation_data: dict = None, industry_c
         'pe_median': pe_median,
         'pe_current': pe_current,
         'layer1_value': round(layer1_value, 2),
-        'layer2_growth_premium': growth_premium,
+        'raw_growth_premium': raw_growth_premium,
+        'raw_moat_premium': raw_moat_premium,
+        'effective_growth_premium': growth_additive,
+        'effective_moat_premium': moat_additive,
+        'effective_total_premium': total_premium,
+        'layer2_growth_premium': growth_additive,
         'layer2_growth_value': round(layer2_growth_value, 2),
-        'layer3_moat_premium': moat_premium,
+        'layer3_moat_premium': moat_additive,
         'layer3_moat_value': round(layer3_moat_value, 2),
         'core_value': round(core_value, 2),
         'core_value_method': core_value_method,
@@ -749,6 +757,11 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
                     'pe_median': value_data.get('pe_median'),
                     'pe_current': value_data.get('pe_current'),
                     'layer1_value': value_data.get('layer1_value'),
+                    'raw_growth_premium': value_data.get('raw_growth_premium'),
+                    'raw_moat_premium': value_data.get('raw_moat_premium'),
+                    'effective_growth_premium': value_data.get('effective_growth_premium'),
+                    'effective_moat_premium': value_data.get('effective_moat_premium'),
+                    'effective_total_premium': value_data.get('effective_total_premium'),
                     'layer2_growth_premium': value_data.get('layer2_growth_premium'),
                     'layer2_growth_value': value_data.get('layer2_growth_value'),
                     'layer3_moat_premium': value_data.get('layer3_moat_premium'),

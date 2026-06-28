@@ -83,7 +83,8 @@ For architecture/chokepoint requests, run this overlay before the normal workflo
 5. Validation path: identify the financial or operating evidence needed: capacity, prepayment, guidance, qualification, orders, pipeline growth, margins.
 6. Capital-flow unlock: index inclusion, coverage, large holders, ADR/Nasdaq access, or liquidity path.
 7. Negative screen: dilution, float unlocks, weak contracts, logo-only partnerships, or retail-exit financing.
-8. Then run `analysis/analyze.py` for market regime, valuation, technical timing, and position sizing. The chokepoint overlay can raise research priority, but it does not override data-quality gates or risk limits.
+8. Separate `research_priority` from `investment_confidence`. Low evidence can raise research priority, but it must not become high investment confidence.
+9. Then run `analysis/analyze.py` for market regime, valuation, technical timing, and position sizing. The chokepoint overlay can raise research priority, but it does not override data-quality gates or risk limits.
 
 ## Recommendation Wording
 
@@ -97,6 +98,8 @@ Keep the model signal internally compatible (`STRONG BUY`, `BUY`, `HOLD`, `SELL`
 | SELL / STRONG SELL | 减仓 / 避免新增 |
 
 If `data_quality.is_clean == false`, cap aggressive entries: downgrade buy-style signals to `HOLD`, lower confidence, and show the data-quality warnings.
+
+For valuation reports, distinguish raw theme/moat premiums from effective premiums after caps and evidence adjustments. Downstream action logic should use effective premiums only; raw premiums are explanatory context.
 
 ## Position Management
 
