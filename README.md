@@ -1,6 +1,6 @@
 # Stock Analysis Skill
 
-**当前版本：v3.6.0**
+**当前版本：v3.7.0**
 
 智能股票分析系统，整合市场情绪、缺口理论、价值区间和仓位管理策略。
 
@@ -659,6 +659,15 @@ stock-analysis/
 - **每日harness系统** - 自动复盘和指标调整 (见SKILL.md中Harness部分)
 
 ## 更新日志
+
+- **v3.7.0** (2026-06-28): 🧠 策略轮动优化 + 回测日期修复
+  - ✨ `harness/strategy_rules.py` 新增科技退潮识别：当 `QQQ/SPY` 和 `SMH/SPY` 同时转弱时，自动降级 AI、半导体、crypto、fintech 和高 beta 标的买入信号
+  - ✨ 新增防御轮动袖珍仓：当科技转弱且 `XLU/XLP` 走强时，允许 `DUK` 等受监管公用事业标的以小权重进入防守配置
+  - ✨ 新增估值跳变保护：核心价值相对上一期变化超过 30% 且无基本面更新时，买入类信号转为 `HOLD_REVIEW`
+  - ✨ 新增价值信号确认门：低估但技术未确认的 `BUY_SMALL` 信号转为 `WAIT_FOR_CONFIRMATION`
+  - 🔧 `strategy_backtest.py` 读取结构化市场相对强弱字段，并为 assessment 注入上一期 `core_value` 以支持估值稳定性检查
+  - 🔧 `backtest.py` 改为解析最近有效 prediction/quotes 数据对，避免周末机械寻找不存在的日历日期
+  - ✅ 验证：`python3 -m pytest harness/tests/unit -q` 104 passed；`python3 -m compileall harness analysis -q` 通过；`stock-harness.sh --backtest` 成功生成 2026-06-26 回测
 
 - **v3.6.0** (2026-06-22): 🧭 Serenity 架构卡口覆盖层 + 工具隔离
   - ✨ 新增 `analysis/serenity_chokepoint.py`，用架构迁移、chokepoint 稀缺性、证据分层、分类纠错、财务验证、资金流解锁和负面筛选做 thesis 压力测试

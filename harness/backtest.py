@@ -152,6 +152,37 @@ class Backtest:
                     print(f"Error decoding JSON from {quotes_file}")
                     continue
         return None
+
+    def _available_dates(self, directory, prefixes):
+        """Return sorted YYYY-MM-DD dates from files matching any of the prefixes."""
+        dates = set()
+        for prefix in prefixes:
+            for path in Path(directory).glob(f"{prefix}-*.json"):
+                date = path.name.removeprefix(f"{prefix}-").removesuffix(".json")
+                try:
+                    datetime.strptime(date, "%Y-%m-%d")
+                except ValueError:
+                    continue
+                dates.add(date)
+        return sorted(dates)
+
+    def resolve_latest_backtest_pair(self):
+        """Resolve the latest stored prediction/quote pair, skipping weekends and data gaps."""
+        prediction_dates = self._available_dates(
+            self.predictions_dir,
+            ("assessment", "prediction"),
+        )
+        actual_dates = self._available_dates(
+            self.daily_reports_dir,
+            ("quotes",),
+        )
+
+        for prediction_date in reversed(prediction_dates):
+            for actual_date in actual_dates:
+                if actual_date >= prediction_date:
+                    return prediction_date, actual_date
+
+        return None
     
     def _extract_actual_direction(self, actual_quote):
         """Extract actual price direction from quote data. Returns 'up', 'down', 'neutral', or None."""
@@ -526,8 +557,12 @@ class Backtest:
     
     def run(self):
         """Run backtest: compare prediction from date D vs actual from date D+1."""
-        yesterday = self.get_yesterday_date()
-        today = self.get_today_date()
+        pair = self.resolve_latest_backtest_pair()
+        if pair:
+            yesterday, today = pair
+        else:
+            yesterday = self.get_yesterday_date()
+            today = self.get_today_date()
         
         print(f"Running backtest: {yesterday} predictions vs {today} actual")
         

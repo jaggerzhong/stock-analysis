@@ -314,6 +314,21 @@ class TestBacktest:
             expected_price_direction_avg, rel=0.01
         )
 
+    def test_resolve_latest_backtest_pair_skips_weekend_gaps(self, backtest, tmp_path):
+        """Backtest should use latest stored market dates instead of calendar yesterday/today."""
+        predictions_dir = tmp_path / "predictions"
+        daily_dir = tmp_path / "daily"
+        predictions_dir.mkdir()
+        daily_dir.mkdir()
+
+        (predictions_dir / "assessment-2026-06-26.json").write_text("{}")
+        (daily_dir / "quotes-2026-06-26.json").write_text("[]")
+
+        backtest.predictions_dir = predictions_dir
+        backtest.daily_reports_dir = daily_dir
+
+        assert backtest.resolve_latest_backtest_pair() == ("2026-06-26", "2026-06-26")
+
 
 class TestStrategyRules:
     def test_hostile_market_downgrades_buy_actions(self):
@@ -345,6 +360,79 @@ class TestStrategyRules:
             MarketEnvironment(sentiment=60, valuation=65),
         )
         assert weight == 0.0
+
+    def test_tech_rotation_downgrades_ai_and_crypto_beta(self):
+        env = MarketEnvironment(
+            sentiment=45,
+            valuation=68,
+            qqq_spy="down",
+            smh_spy="down",
+            rsp_spy="up",
+            xlu_spy="up",
+            xlp_spy="up",
+        )
+
+        assert adjusted_action(
+            {"symbol": "NVDA.US", "action": "GET_ON_BOARD", "matched_industries": ["AI Chips & Semiconductors"]},
+            env,
+        ) == "BUY_SMALL"
+        assert adjusted_action(
+            {"symbol": "COIN.US", "action": "BUY_SMALL", "matched_industries": ["Trading & Fintech Platform"]},
+            env,
+        ) == "WAIT"
+
+    def test_defensive_rotation_allows_small_utility_weight(self):
+        env = MarketEnvironment(
+            sentiment=45,
+            valuation=68,
+            qqq_spy="down",
+            smh_spy="down",
+            rsp_spy="up",
+            xlu_spy="up",
+            xlp_spy="up",
+        )
+
+        weight = action_weight(
+            {
+                "symbol": "DUK.US",
+                "action": "AVOID",
+                "moat_width": "Wide",
+                "moat_score": 8.0,
+                "value_trap_score": 0,
+                "matched_industries": ["Regulated Utility"],
+            },
+            env,
+        )
+
+        assert weight == 0.25
+
+    def test_valuation_model_jump_forces_hold_review(self):
+        env = MarketEnvironment(sentiment=50, valuation=65)
+
+        assert adjusted_action(
+            {
+                "symbol": "NVDA.US",
+                "action": "BUY",
+                "current_price": 200,
+                "core_value": 90,
+                "previous_core_value": 300,
+                "has_fundamental_update": False,
+            },
+            env,
+        ) == "HOLD_REVIEW"
+
+    def test_value_only_buy_small_waits_for_technical_confirmation(self):
+        env = MarketEnvironment(sentiment=50, valuation=65)
+
+        assert adjusted_action(
+            {
+                "symbol": "BABA.US",
+                "action": "BUY_SMALL",
+                "deviation_pct": -8.7,
+                "technical_confirmed": False,
+            },
+            env,
+        ) == "WAIT_FOR_CONFIRMATION"
 
 
 class TestMarketEnvironmentHarness:

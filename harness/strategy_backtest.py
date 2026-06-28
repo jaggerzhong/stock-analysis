@@ -58,6 +58,9 @@ def _extract_market_environment(report_path: Path) -> MarketEnvironment:
             market_temp = data.get("market_temp", {})
             assessment = data.get("assessment", {})
             dims = assessment.get("dimension_breakdown", {})
+            risk_appetite = data.get("inputs", {}).get("risk_appetite_data", {})
+            if not risk_appetite:
+                risk_appetite = dims.get("risk_appetite", {}).get("raw", {})
             sentiment = market_temp.get("sentiment")
             valuation = market_temp.get("valuation")
             if sentiment is None:
@@ -68,6 +71,11 @@ def _extract_market_environment(report_path: Path) -> MarketEnvironment:
                 sentiment=float(sentiment) if sentiment is not None else None,
                 valuation=float(valuation) if valuation is not None else None,
                 temperature=float(market_temp.get("temperature")) if market_temp.get("temperature") is not None else None,
+                qqq_spy=risk_appetite.get("qqq_spy"),
+                smh_spy=risk_appetite.get("smh_spy"),
+                rsp_spy=risk_appetite.get("rsp_spy"),
+                xlu_spy=risk_appetite.get("xlu_spy"),
+                xlp_spy=risk_appetite.get("xlp_spy"),
             )
         except (json.JSONDecodeError, TypeError, ValueError):
             pass
@@ -93,6 +101,32 @@ def _load_assessment(path: Path) -> list[dict[str, Any]] | None:
     data = _load_json(path)
     assessments = data.get("watchlist_assessments")
     return assessments if isinstance(assessments, list) else None
+
+
+def _core_value_by_symbol(assessments: list[dict[str, Any]] | None) -> dict[str, float]:
+    values: dict[str, float] = {}
+    if not assessments:
+        return values
+    for assessment in assessments:
+        symbol = assessment.get("symbol")
+        core_value = _number(assessment.get("core_value"))
+        if symbol and core_value is not None:
+            values[str(symbol)] = core_value
+    return values
+
+
+def _with_previous_core_values(
+    assessments: list[dict[str, Any]],
+    previous_core_values: dict[str, float],
+) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for assessment in assessments:
+        item = dict(assessment)
+        previous_core_value = previous_core_values.get(str(item.get("symbol")))
+        if previous_core_value is not None:
+            item["previous_core_value"] = previous_core_value
+        enriched.append(item)
+    return enriched
 
 
 def _load_quotes(path: Path) -> dict[str, dict[str, Any]]:
@@ -177,15 +211,18 @@ def run_backtest(data_dir: Path = HARNESS_DIR / "data") -> dict[str, Any]:
     base_equity = optimized_equity = benchmark_equity = 1.0
     optimized_peak = 1.0
     optimized_max_drawdown = 0.0
+    previous_core_values: dict[str, float] = {}
 
     for assessment_date in assessment_dates:
         assessment_path = predictions_dir / f"assessment-{assessment_date}.json"
         assessments = _load_assessment(assessment_path)
         if not assessments:
             continue
+        assessments = _with_previous_core_values(assessments, previous_core_values)
 
         actual_date = _next_available_date(assessment_date, quote_dates)
         if not actual_date:
+            previous_core_values = _core_value_by_symbol(assessments)
             continue
 
         quotes = _load_quotes(daily_dir / f"quotes-{actual_date}.json")
@@ -216,6 +253,7 @@ def run_backtest(data_dir: Path = HARNESS_DIR / "data") -> dict[str, Any]:
                 "optimized_picks": optimized_picks,
             }
         )
+        previous_core_values = _core_value_by_symbol(assessments)
 
     optimized_returns = [row["optimized_return"] for row in rows]
     base_returns = [row["base_return"] for row in rows]
