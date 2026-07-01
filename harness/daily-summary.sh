@@ -1,6 +1,6 @@
 #!/bin/bash
 # Daily summary script for stock analysis harness
-# Run at 9:00 AM Beijing Time to analyze previous US trading day's performance and predict next day
+# Run at 9:40 AM Beijing Time to analyze the latest completed US trading session
 
 set -e
 
@@ -25,6 +25,7 @@ DATA_DIR="$SCRIPT_DIR/$(get_config data_dir)"
 DAILY_REPORTS_DIR="$DATA_DIR/$(get_config daily_reports_dir)"
 PREDICTIONS_DIR="$DATA_DIR/$(get_config predictions_dir)"
 METRICS_DIR="$DATA_DIR/$(get_config metrics_dir)"
+RELIABILITY_HELPER="$SCRIPT_DIR/reliability_cockpit.py"
 
 # Create directories if they don't exist
 mkdir -p "$DAILY_REPORTS_DIR" "$PREDICTIONS_DIR" "$METRICS_DIR"
@@ -32,11 +33,69 @@ mkdir -p "$DAILY_REPORTS_DIR" "$PREDICTIONS_DIR" "$METRICS_DIR"
 # Get current date
 TODAY=$(date +%Y-%m-%d)
 YESTERDAY=$(date -v-1d +%Y-%m-%d)
+MANIFEST_FILE="$DAILY_REPORTS_DIR/run-manifest-$TODAY.json"
+TRUST_SECTIONS_FILE="$DAILY_REPORTS_DIR/trust-sections-$TODAY.md"
 
-# Check if market is open (simple check: weekday and time)
+python3 "$RELIABILITY_HELPER" init-manifest \
+    --date "$TODAY" \
+    --mode daily \
+    --manifest "$MANIFEST_FILE"
+
+run_capture_command() {
+    local label="$1"
+    local output_file="$2"
+    shift 2
+    local stderr_file="$DAILY_REPORTS_DIR/${label}-$TODAY.err"
+
+    set +e
+    "$@" > "$output_file" 2> "$stderr_file"
+    local status=$?
+    set -e
+
+    python3 "$RELIABILITY_HELPER" record-command \
+        --manifest "$MANIFEST_FILE" \
+        --label "$label" \
+        --command "$*" \
+        --exit-code "$status" \
+        --output "$output_file" \
+        --stderr "$stderr_file"
+
+    return $status
+}
+
+run_artifact_command() {
+    local label="$1"
+    local artifact_file="$2"
+    shift 2
+    local stderr_file="$DAILY_REPORTS_DIR/${label}-$TODAY.err"
+    local stdout_file="$DAILY_REPORTS_DIR/${label}-$TODAY.out"
+
+    set +e
+    "$@" > "$stdout_file" 2> "$stderr_file"
+    local status=$?
+    set -e
+
+    python3 "$RELIABILITY_HELPER" record-command \
+        --manifest "$MANIFEST_FILE" \
+        --label "$label" \
+        --command "$*" \
+        --exit-code "$status" \
+        --output "$artifact_file" \
+        --stderr "$stderr_file"
+
+    return $status
+}
+
+# Check whether this Beijing-date run maps to a completed US trading session.
 DAY_OF_WEEK=$(date +%u)  # 1=Monday, 7=Sunday
-if [ "$DAY_OF_WEEK" -ge 6 ]; then
-    echo "Weekend - skipping analysis"
+if [ "$DAY_OF_WEEK" -eq 7 ] || [ "$DAY_OF_WEEK" -eq 1 ]; then
+    SKIP_REASON="No completed US trading session for Beijing $(date +%A)"
+    python3 "$RELIABILITY_HELPER" init-manifest \
+        --date "$TODAY" \
+        --mode daily \
+        --manifest "$MANIFEST_FILE" \
+        --skip-reason "$SKIP_REASON"
+    echo "$SKIP_REASON - skipping analysis"
     exit 0
 fi
 
@@ -45,12 +104,18 @@ echo "====================================="
 
 # Step 1: Get market sentiment
 echo "1. Fetching market sentiment..."
-MARKET_SENTIMENT=$(longbridge market-temp 2>/dev/null || echo "N/A")
+MARKET_SENTIMENT_FILE="$DAILY_REPORTS_DIR/market-temp-$TODAY.txt"
+run_capture_command market_sentiment "$MARKET_SENTIMENT_FILE" longbridge market-temp || true
+MARKET_SENTIMENT=$(cat "$MARKET_SENTIMENT_FILE" 2>/dev/null)
+[ -n "$MARKET_SENTIMENT" ] || MARKET_SENTIMENT="N/A"
 echo "Market sentiment: $MARKET_SENTIMENT"
 
 # Step 2: Get major indices
 echo "2. Fetching major indices..."
-MAJOR_INDICES=$(longbridge quote .^GSPC.US .^DJI.US .^IXIC.US 2>/dev/null || echo "N/A")
+MAJOR_INDICES_FILE="$DAILY_REPORTS_DIR/market-indices-$TODAY.txt"
+run_capture_command major_indices "$MAJOR_INDICES_FILE" longbridge quote .^GSPC.US .^DJI.US .^IXIC.US || true
+MAJOR_INDICES=$(cat "$MAJOR_INDICES_FILE" 2>/dev/null)
+[ -n "$MAJOR_INDICES" ] || MAJOR_INDICES="N/A"
 
 # Step 3: Fetch quotes for watchlist
 echo "3. Fetching watchlist quotes..."
@@ -70,7 +135,10 @@ fi
 
 QUOTES_FILE="$DAILY_REPORTS_DIR/quotes-$TODAY.json"
 echo "Fetching quotes for: ${WATCHLIST[*]}"
-longbridge quote "${WATCHLIST[@]}" --format json > "$QUOTES_FILE" 2>/dev/null || echo "Failed to fetch quotes"
+run_capture_command watchlist_quotes "$QUOTES_FILE" longbridge quote "${WATCHLIST[@]}" --format json || {
+    echo "Failed to fetch quotes"
+    echo "[]" > "$QUOTES_FILE"
+}
 
 # Step 4: Get news for each symbol
 echo "4. Fetching news for watchlist..."
@@ -84,7 +152,7 @@ done
 # Step 5: Generate structured market environment assessment
 echo "5. Generating market environment assessment..."
 MARKET_ENV_FILE="$DAILY_REPORTS_DIR/market-environment-$TODAY.json"
-python3 "$SCRIPT_DIR/market_environment.py" --quotes "$QUOTES_FILE" --output "$MARKET_ENV_FILE" 2>/dev/null || {
+run_artifact_command market_environment "$MARKET_ENV_FILE" python3 "$SCRIPT_DIR/market_environment.py" --quotes "$QUOTES_FILE" --output "$MARKET_ENV_FILE" || {
     echo "Warning: Market environment generation failed"
     echo "{}" > "$MARKET_ENV_FILE"
 }
@@ -93,7 +161,7 @@ python3 "$SCRIPT_DIR/market_environment.py" --quotes "$QUOTES_FILE" --output "$M
 echo "6. Generating value assessment..."
 PREDICTION_FILE="$PREDICTIONS_DIR/assessment-$TODAY.json"
 
-python3 "$SCRIPT_DIR/generate_valuation.py" --date "$TODAY" --output "$PREDICTION_FILE" 2>/dev/null || {
+run_artifact_command valuation "$PREDICTION_FILE" python3 "$SCRIPT_DIR/generate_valuation.py" --date "$TODAY" --output "$PREDICTION_FILE" || {
     echo "Warning: Valuation generation failed, using fallback"
     echo "{}" > "$PREDICTION_FILE"
 }
@@ -107,15 +175,32 @@ REPORT_FILE="$DAILY_REPORTS_DIR/report-$TODAY.md"
 # Fetch positions data (includes options)
 echo "  Fetching portfolio positions..."
 POSITIONS_FILE="$DAILY_REPORTS_DIR/positions-$TODAY.json"
-longbridge positions --format json > "$POSITIONS_FILE" 2>/dev/null || echo "[]"
+run_capture_command positions "$POSITIONS_FILE" longbridge positions --format json || {
+    echo "[]"> "$POSITIONS_FILE"
+}
 
 # Run option analysis via Python
 echo "  Running option analysis..."
 OPTION_REPORT_FILE="$DAILY_REPORTS_DIR/options-$TODAY.md"
-python3 "$SCRIPT_DIR/option-analysis.py" --positions "$POSITIONS_FILE" --output "$OPTION_REPORT_FILE" 2>/dev/null || {
+run_artifact_command option_analysis "$OPTION_REPORT_FILE" python3 "$SCRIPT_DIR/option-analysis.py" --positions "$POSITIONS_FILE" --output "$OPTION_REPORT_FILE" || {
     echo "  Warning: Option analysis failed, will include raw data"
     OPTION_REPORT_FILE=""
 }
+
+python3 "$RELIABILITY_HELPER" finalize-manifest \
+    --date "$TODAY" \
+    --manifest "$MANIFEST_FILE" \
+    --quotes "$QUOTES_FILE" \
+    --assessment "$PREDICTION_FILE" \
+    --market-environment "$MARKET_ENV_FILE" \
+    --positions "$POSITIONS_FILE" \
+    --options "$OPTION_REPORT_FILE" \
+    --report "$REPORT_FILE" \
+    --predictions-dir "$PREDICTIONS_DIR"
+
+python3 "$RELIABILITY_HELPER" render-sections \
+    --manifest "$MANIFEST_FILE" \
+    --output "$TRUST_SECTIONS_FILE"
 
 # Helper to extract valuation range for a symbol from the prediction JSON
 get_valuation_for_symbol() {
@@ -169,6 +254,8 @@ cat > "$REPORT_FILE" << EOF
 Date: $TODAY
 Generated: $(date)
 
+$(cat "$TRUST_SECTIONS_FILE")
+
 ## Market Overview
 - **Market Sentiment:** $MARKET_SENTIMENT
 - **Major Indices:** $MAJOR_INDICES
@@ -176,8 +263,8 @@ Generated: $(date)
 - **Environment Data:** $MARKET_ENV_FILE
 
 ## Watchlist Performance
-| Symbol | Price | Chg% | Volume | Valuation Range | Core Value | Deviation | Moat | Action |
-|--------|-------|------|--------|-----------------|------------|-----------|------|--------|
+| Symbol | Price | Chg% | Volume | Valuation Range | Core Value | Deviation | Moat | Action | Data |
+|--------|-------|------|--------|-----------------|------------|-----------|------|--------|------|
 EOF
 
 # Parse quotes and valuation JSON and add rows
@@ -234,8 +321,9 @@ for symbol in "${WATCHLIST[@]}"; do
         AVOID) ACTION_DISPLAY="❌ Avoid" ;;
         *) ACTION_DISPLAY="$VAL_ACTION" ;;
     esac
+    DATA_BADGE=$(python3 "$RELIABILITY_HELPER" data-badge --manifest "$MANIFEST_FILE" --symbol "$symbol")
 
-    echo "| $symbol | $PRICE | ${CHANGE}% | $VOLUME | $VAL_RANGE_DISPLAY | $CORE_DISPLAY | $DEV_DISPLAY | $MOAT | $ACTION_DISPLAY |" >> "$REPORT_FILE"
+    echo "| $symbol | $PRICE | ${CHANGE}% | $VOLUME | $VAL_RANGE_DISPLAY | $CORE_DISPLAY | $DEV_DISPLAY | $MOAT | $ACTION_DISPLAY | $DATA_BADGE |" >> "$REPORT_FILE"
 done
 
 cat >> "$REPORT_FILE" << EOF
@@ -325,13 +413,26 @@ cat >> "$REPORT_FILE" << EOF
 
 ## Predictions for Tomorrow ($(date -v+1d +%Y-%m-%d))
 See predictions file: $PREDICTIONS_DIR/assessment-$TODAY.json
+See run manifest: $MANIFEST_FILE
 
 ## Notes
 - This report is generated automatically for review purposes.
+- Decision support only, not financial advice.
 - Always conduct your own research before making investment decisions.
 EOF
 
 echo "Summary report saved to: $REPORT_FILE"
+
+python3 "$RELIABILITY_HELPER" finalize-manifest \
+    --date "$TODAY" \
+    --manifest "$MANIFEST_FILE" \
+    --quotes "$QUOTES_FILE" \
+    --assessment "$PREDICTION_FILE" \
+    --market-environment "$MARKET_ENV_FILE" \
+    --positions "$POSITIONS_FILE" \
+    --options "$OPTION_REPORT_FILE" \
+    --report "$REPORT_FILE" \
+    --predictions-dir "$PREDICTIONS_DIR"
 
 # Step 8: Update metrics
 echo "8. Updating performance metrics..."
@@ -352,5 +453,6 @@ echo "Daily summary completed successfully!"
 echo "====================================="
 echo "Next steps:"
 echo "1. Review report: $REPORT_FILE"
-echo "2. Run backtest at 9:30 AM Beijing Time to compare predictions vs actual"
-echo "3. Adjust tracking metrics if needed (Friday 10:00 AM)"
+echo "2. Review run manifest: $MANIFEST_FILE"
+echo "3. Run backtest after daily artifacts exist: ./harness-run.sh --backtest"
+echo "4. Adjust tracking metrics after enough history exists"

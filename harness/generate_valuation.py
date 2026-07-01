@@ -20,6 +20,7 @@ import re
 import yaml
 from pathlib import Path
 from datetime import datetime, timedelta
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -409,6 +410,85 @@ def _classify_price_vs_range(price: float, lower: float, upper: float, mid: floa
         return 'Above Range (Overvalued)'
 
 
+def _build_three_layer_range(value_data: dict, current_price: float, source: str = None,
+                             suppressed_reason: str = None, original_range: dict = None) -> tuple:
+    """Build a valuation range from the PE/growth/moat model."""
+    core_value = value_data['core_value']
+    core_value_source = source or value_data.get('core_value_method', 'three_layer')
+    l1 = value_data.get('layer1_value', core_value)
+    l3 = value_data.get('layer3_moat_value', core_value * 1.2)
+
+    if l1 and l3:
+        valuation_lower = round(min(l1, core_value * 0.85), 2)
+        valuation_upper = round(max(l3, core_value * 1.15), 2)
+    else:
+        valuation_lower = round(core_value * 0.85, 2)
+        valuation_upper = round(core_value * 1.15, 2)
+
+    valuation_range = {
+        'valuation_lower': valuation_lower,
+        'valuation_mid': core_value,
+        'valuation_upper': valuation_upper,
+        'margin_of_safety': round((core_value - current_price) / core_value, 4) if core_value > 0 else 0,
+        'price_vs_range': _classify_price_vs_range(current_price, valuation_lower, valuation_upper, core_value),
+        'source': core_value_source,
+    }
+    if suppressed_reason:
+        valuation_range['suppressed_primary_anchor'] = suppressed_reason
+        valuation_range['suppressed_models'] = (original_range or {}).get('models', {})
+        valuation_range['graham_reference'] = (original_range or {}).get('graham_reference')
+
+    return core_value, valuation_lower, valuation_upper, core_value_source, valuation_range
+
+
+def _low_confidence_dcf_reason(symbol: str, analysis: dict, value_data: dict,
+                               dcf_result: dict, shiller_result: dict,
+                               current_price: float) -> Optional[str]:
+    """
+    Flag DCF-only values that are likely distorted by temporarily weak FCF.
+
+    The harness used to promote any available DCF to the primary anchor. When
+    Shiller/CAPE is missing, that can make one noisy trailing FCF number dominate
+    the whole report. This gate keeps DCF as evidence, but falls back to the
+    PE/growth/moat anchor when DCF is both single-model and far below other
+    valuation references.
+    """
+    if not dcf_result or shiller_result or current_price <= 0:
+        return None
+
+    dcf_value = dcf_result.get('dcf_value')
+    if not dcf_value or dcf_value <= 0:
+        return None
+
+    valuation = analysis.get('valuation_analysis', {}) or {}
+    financial = analysis.get('financial_data', {}) or {}
+    warnings = (financial.get('data_quality', {}) or {}).get('warnings', []) or []
+    graham_value = valuation.get('graham_intrinsic_value')
+    layer1_value = value_data.get('layer1_value')
+    p_fcf = valuation.get('p_fcf_ratio')
+    fcf_yield = valuation.get('fcf_yield')
+
+    reference_values = [
+        value for value in (layer1_value, graham_value, current_price)
+        if isinstance(value, (int, float)) and value > 0
+    ]
+    strongest_reference = max(reference_values) if reference_values else current_price
+    far_below_references = dcf_value < strongest_reference * 0.55
+    weak_fcf_signal = (
+        any('FCF qf-sum' in str(w) for w in warnings)
+        or (p_fcf is not None and p_fcf > 50)
+        or (fcf_yield is not None and fcf_yield < 0.02)
+    )
+
+    if far_below_references and (weak_fcf_signal or _is_stable_sector(symbol)):
+        return (
+            f"dcf_only_low_confidence: dcf=${dcf_value:.2f}, "
+            f"reference=${strongest_reference:.2f}, p_fcf={p_fcf}, fcf_yield={fcf_yield}"
+        )
+
+    return None
+
+
 def calculate_value_deviation(current_price: float, core_value: float, pe_percentile: float = None,
                                growth_premium: float = 0.0, moat_premium: float = 0.0,
                                symbol: str = '') -> dict:
@@ -631,9 +711,20 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
             valuation_range = valuation_analysis.get('valuation_range', {})
             dcf_result = valuation_analysis.get('dcf_result')
             shiller_result = valuation_analysis.get('shiller_result')
+            suppressed_dcf_reason = _low_confidence_dcf_reason(
+                symbol, analysis, value_data, dcf_result, shiller_result, current_price
+            )
 
             # Use DCF+Shiller composite as primary core value when available
-            if valuation_range and valuation_range.get('valuation_mid'):
+            if suppressed_dcf_reason:
+                core_value, valuation_lower, valuation_upper, core_value_source, valuation_range = _build_three_layer_range(
+                    value_data,
+                    current_price,
+                    source=f"{value_data.get('core_value_method', 'three_layer')}_dcf_low_confidence",
+                    suppressed_reason=suppressed_dcf_reason,
+                    original_range=valuation_range,
+                )
+            elif valuation_range and valuation_range.get('valuation_mid'):
                 core_value = valuation_range['valuation_mid']
                 valuation_lower = valuation_range.get('valuation_lower', core_value * 0.8)
                 valuation_upper = valuation_range.get('valuation_upper', core_value * 1.2)
@@ -647,29 +738,9 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
                 else:
                     core_value_source = 'valuation_range'
             else:
-                core_value = core_value_layer
-                core_value_source = value_data.get('core_value_method', 'three_layer')
-                # Build valuation range from three-layer model
-                # Lower bound: conservative PE-anchored value (layer1)
-                # Upper bound: full moat-inclusive value (layer3)
-                l1 = value_data.get('layer1_value', core_value)
-                l3 = value_data.get('layer3_moat_value', core_value * 1.2)
-                if l1 and l3:
-                    valuation_lower = round(min(l1, core_value * 0.85), 2)
-                    valuation_upper = round(max(l3, core_value * 1.15), 2)
-                else:
-                    # Fallback: 15% band around core value
-                    valuation_lower = round(core_value * 0.85, 2)
-                    valuation_upper = round(core_value * 1.15, 2)
-                # Construct valuation_range dict for JSON output
-                valuation_range = {
-                    'valuation_lower': valuation_lower,
-                    'valuation_mid': core_value,
-                    'valuation_upper': valuation_upper,
-                    'margin_of_safety': round((core_value - current_price) / core_value, 4) if core_value > 0 else 0,
-                    'price_vs_range': _classify_price_vs_range(current_price, valuation_lower, valuation_upper, core_value),
-                    'source': core_value_source,
-                }
+                core_value, valuation_lower, valuation_upper, core_value_source, valuation_range = _build_three_layer_range(
+                    value_data, current_price
+                )
 
             # Calculate deviation using PE percentile + premiums
             deviation = calculate_value_deviation(

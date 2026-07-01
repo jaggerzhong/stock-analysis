@@ -92,22 +92,26 @@ harness/
 
 ### 1. Daily Summary (daily-summary.sh)
 
-Runs at 9:00 AM Beijing Time (after US market close).
+Runs Tuesday-Saturday at 9:40 AM Beijing Time. Sunday and Monday are skipped because there is no newly completed US trading session to review.
 
 **What it does:**
 - Fetches market sentiment
 - Gets quotes for watchlist
 - Collects news for each symbol
+- Records a run manifest with data-source status, failure classes, artifacts, and stale/partial data warnings
+- Adds a trust header, action deltas, per-symbol data quality badges, and recent backtest truth to the report
 - Generates daily report
 - Saves predictions for tomorrow
 
 **Output:**
 - `data/daily/report-YYYY-MM-DD.md`
-- `data/predictions/prediction-YYYY-MM-DD.json`
+- `data/daily/run-manifest-YYYY-MM-DD.json`
+- `data/daily/action-delta-YYYY-MM-DD.json`
+- `data/predictions/assessment-YYYY-MM-DD.json`
 
 ### 2. Backtest (backtest.py)
 
-Runs at 9:30 AM Beijing Time.
+Runs on demand after a valid daily report is available.
 
 **What it does:**
 - Compares yesterday's predictions vs actual
@@ -123,7 +127,7 @@ Runs at 9:30 AM Beijing Time.
 
 ### 3. Metrics Adjustment (adjust-metrics.py)
 
-Runs weekly on Friday at 10:00 AM Beijing Time.
+Runs on demand after enough backtest history exists.
 
 **What it does:**
 - Analyzes backtest performance trends
@@ -247,14 +251,14 @@ adjustment:
 crontab -e
 
 # Add these lines:
-# Daily summary at 9:00 AM Beijing Time
-0 9 * * * cd /Users/Jagger/.agents/skills/stock-analysis/harness && ./harness-run.sh --daily
+# Daily summary at 9:40 AM Beijing Time, Tuesday-Saturday
+40 9 * * 2-6 cd /Users/Jagger/.agents/skills/stock-analysis/harness && ./harness-run.sh --daily
 
-# Backtest at 9:30 AM Beijing Time
-30 9 * * * cd /Users/Jagger/.agents/skills/stock-analysis/harness && ./harness-run.sh --backtest
+# Optional backtest after daily artifacts exist
+0 10 * * 2-6 cd /Users/Jagger/.agents/skills/stock-analysis/harness && ./harness-run.sh --backtest
 
-# Weekly adjustment on Friday at 10:00 AM Beijing Time
-0 10 * * 5 cd /Users/Jagger/.agents/skills/stock-analysis/harness && ./harness-run.sh --adjust
+# Optional weekly adjustment
+30 10 * * 5 cd /Users/Jagger/.agents/skills/stock-analysis/harness && ./harness-run.sh --adjust
 ```
 
 ## 📊 Monitoring (Planned)

@@ -10,7 +10,7 @@ SKILL_DIR = Path(__file__).parent.parent.parent.parent.resolve()
 sys.path.insert(0, str(SKILL_DIR))
 
 from analysis.serenity_chokepoint import Candidate, score_candidate
-from harness.generate_valuation import calculate_core_value
+from harness.generate_valuation import _low_confidence_dcf_reason, calculate_core_value
 
 
 def _candidate(**overrides):
@@ -107,3 +107,45 @@ def test_core_value_reports_effective_premiums_after_cap():
     assert result["effective_growth_premium"] + result["effective_moat_premium"] == pytest.approx(0.15)
     assert result["layer2_growth_premium"] == result["effective_growth_premium"]
     assert result["layer3_moat_premium"] == result["effective_moat_premium"]
+
+
+def test_dcf_only_utility_with_distorted_fcf_is_low_confidence():
+    analysis = {
+        "valuation_analysis": {
+            "p_fcf_ratio": 209.2,
+            "fcf_yield": 0.0048,
+            "graham_intrinsic_value": 156.71,
+        },
+        "financial_data": {
+            "data_quality": {
+                "warnings": [
+                    "FCF qf-sum ($-258,750,000) ≠ annual ($268,625,000) — using annual"
+                ]
+            }
+        },
+    }
+    value_data = {"layer1_value": 199.23}
+    dcf_result = {"dcf_value": 11.66}
+
+    reason = _low_confidence_dcf_reason("DUK.US", analysis, value_data, dcf_result, None, 126.58)
+
+    assert reason is not None
+    assert reason.startswith("dcf_only_low_confidence")
+
+
+def test_dcf_with_shiller_is_not_suppressed():
+    analysis = {
+        "valuation_analysis": {
+            "p_fcf_ratio": 80.0,
+            "fcf_yield": 0.01,
+            "graham_intrinsic_value": 150.0,
+        },
+        "financial_data": {"data_quality": {"warnings": ["FCF qf-sum mismatch"]}},
+    }
+    value_data = {"layer1_value": 200.0}
+    dcf_result = {"dcf_value": 50.0}
+    shiller_result = {"shiller_intrinsic_mid": 120.0}
+
+    reason = _low_confidence_dcf_reason("DUK.US", analysis, value_data, dcf_result, shiller_result, 125.0)
+
+    assert reason is None

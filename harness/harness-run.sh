@@ -183,12 +183,13 @@ generate_report() {
     echo ""
     echo "Next Steps (Beijing Time):"
     echo "1. Review daily report: $DATA_DIR/daily/report-$TODAY.md"
-    echo "2. Run backtest at 9:30 AM: ./harness-run.sh --backtest"
-    echo "3. Check backtest results: $DATA_DIR/backtests/"
-    echo "4. Consider adjustments if needed (Friday 10:00 AM)"
+    echo "2. Review run manifest: $DATA_DIR/daily/run-manifest-$TODAY.json"
+    echo "3. Run backtest after daily artifacts exist: ./harness-run.sh --backtest"
+    echo "4. Check backtest results: $DATA_DIR/backtests/"
+    echo "5. Consider adjustments after enough history exists"
     echo ""
     echo "To set up automatic daily runs (Beijing Time), add to crontab:"
-    echo "0 9 * * * cd $SCRIPT_DIR && ./harness-run.sh --daily"
+    echo "40 9 * * 2-6 cd $SCRIPT_DIR && ./harness-run.sh --daily"
 }
 
 # Parse command line arguments
