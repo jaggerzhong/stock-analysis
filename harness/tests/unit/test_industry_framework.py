@@ -13,6 +13,9 @@ from analysis.serenity_chokepoint import Candidate, score_candidate
 from harness.generate_valuation import _low_confidence_dcf_reason, calculate_core_value
 
 
+AI_CYCLE_REFERENCE = SKILL_DIR / "references" / "ai-infrastructure-cycle.md"
+
+
 def _candidate(**overrides):
     data = {
         "symbol": "DUK.US",
@@ -46,6 +49,98 @@ def test_user_thesis_does_not_reclassify_unrelated_candidate():
 
     assert with_ai_power_thesis["layer"] == base["layer"]
     assert with_ai_power_thesis["scores"]["architecture_relevance"] == base["scores"]["architecture_relevance"]
+
+
+@pytest.mark.parametrize(
+    ("description", "expected_layer"),
+    [
+        ("HBM DRAM NAND memory and AI storage supplier", "storage/memory"),
+        ("1.6T optical networking and data-center switch supplier", "optical/networking"),
+        ("数据中心交换机和高速网络平台", "optical/networking"),
+        ("美国发电和零售电力平台，数据中心电力紧缺", "power"),
+    ],
+)
+def test_ai_infrastructure_layers_cover_storage_and_networking(description, expected_layer):
+    assessment = score_candidate(
+        _candidate(
+            symbol="INFRA.US",
+            name="Infrastructure Supplier",
+            sector="Technology",
+            description=description,
+            moat_notes="technology leader",
+            moat_score=7.0,
+            moat_types=["technology_moat"],
+        )
+    )
+
+    assert assessment["layer"] == expected_layer
+    assert assessment["scores"]["architecture_relevance"] == 4
+
+
+def test_broad_market_etf_is_not_forced_into_an_ai_architecture_layer():
+    assessment = score_candidate(
+        _candidate(
+            symbol="SPY.US",
+            name="SPDR S&P 500 ETF Trust",
+            sector="Broad Market ETF",
+            description="用于降低单一AI主题风险",
+            moat_notes="",
+            moat_score=0.0,
+            moat_types=[],
+        )
+    )
+
+    assert assessment["layer"] == "unclassified architecture node"
+
+
+@pytest.mark.parametrize(
+    ("description", "moat_notes", "expected_layer"),
+    [
+        ("搜索广告和云计算平台", "广告网络效应", "cloud/platform"),
+        ("社交平台和AI推荐", "社交网络效应", "ai application"),
+    ],
+)
+def test_business_network_effect_is_not_misclassified_as_network_infrastructure(
+    description, moat_notes, expected_layer
+):
+    assessment = score_candidate(
+        _candidate(
+            symbol="PLATFORM.US",
+            name="Platform Company",
+            sector="Technology",
+            description=description,
+            moat_notes=moat_notes,
+            moat_score=8.0,
+            moat_types=["network_effect"],
+        )
+    )
+
+    assert assessment["layer"] == expected_layer
+
+
+def test_stock_skill_routes_ai_capex_cycle_through_required_risk_gates():
+    skill_text = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "references/ai-infrastructure-cycle.md" in skill_text
+    assert AI_CYCLE_REFERENCE.exists()
+
+    framework = AI_CYCLE_REFERENCE.read_text(encoding="utf-8").lower()
+    required_guidance = [
+        "capex is necessary but not sufficient",
+        "revenue capture",
+        "orders",
+        "backlog",
+        "inventory",
+        "gross margin",
+        "free cash flow",
+        "capacity expansion",
+        "crowding",
+        "look-through valuation",
+        "staged entry",
+        "exit",
+    ]
+    for guidance in required_guidance:
+        assert guidance in framework
 
 
 def test_low_evidence_research_thesis_is_not_high_investment_confidence():

@@ -610,7 +610,7 @@ Phase 3 (LOW - 可并行)
 
 ### 单元测试
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis
+cd "$HOME/.agents/skills/stock-analysis"
 python -m pytest harness/tests/ -v
 ```
 

@@ -15,7 +15,7 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
 
 from harness.backtest import Backtest  # noqa: E402
-from watchlist_utils import load_watchlist  # noqa: E402
+from watchlist_utils import load_valuation_disabled_symbols, load_watchlist  # noqa: E402
 
 
 FAILURE_CLASSES = {
@@ -189,6 +189,7 @@ def compute_data_quality(
 ) -> dict[str, Any]:
     available_quotes = quote_symbols(quotes_path)
     by_symbol = {str(item.get("symbol")): item for item in assessment_items(assessment_path) if item.get("symbol")}
+    valuation_disabled = load_valuation_disabled_symbols()
     failed_labels = {failure.get("label") for failure in manifest.get("failures", [])}
     result: dict[str, Any] = {}
     for symbol in watchlist:
@@ -196,7 +197,9 @@ def compute_data_quality(
         if "watchlist_quotes" in failed_labels or symbol not in available_quotes:
             warnings.append("missing_quote")
         item = by_symbol.get(symbol)
-        if not item:
+        if not item and symbol.upper() in valuation_disabled:
+            warnings.append("valuation_skipped")
+        elif not item:
             warnings.append("missing_assessment")
         else:
             if item.get("data_quality_clean") is False:
@@ -208,7 +211,9 @@ def compute_data_quality(
                 warnings.append("no_pe_anchor")
             if item.get("core_value_source") in {"current_price", "fallback"}:
                 warnings.append("valuation_fallback_used")
-        if not warnings:
+        if warnings == ["valuation_skipped"]:
+            status = "Skipped"
+        elif not warnings:
             status = "Clean"
         elif "missing_quote" in warnings or "missing_assessment" in warnings:
             status = "Failed"
@@ -338,6 +343,8 @@ def render_sections(args: argparse.Namespace) -> None:
     dq = manifest.get("data_quality", {})
     partial_count = sum(1 for value in dq.values() if value.get("status") == "Partial")
     failed_count = sum(1 for value in dq.values() if value.get("status") == "Failed")
+    skipped_count = sum(1 for value in dq.values() if value.get("status") == "Skipped")
+    clean_count = len(dq) - partial_count - failed_count - skipped_count
     lines = [
         "## Trust Header",
         f"- **Run Status:** {trust}",
@@ -346,7 +353,10 @@ def render_sections(args: argparse.Namespace) -> None:
     ]
     if manifest.get("skip_reason"):
         lines.append(f"- **Skip Reason:** {manifest['skip_reason']}")
-    lines.append(f"- **Data Quality:** {len(dq) - partial_count - failed_count} clean / {partial_count} partial / {failed_count} failed")
+    quality_line = f"- **Data Quality:** {clean_count} clean / {partial_count} partial / {failed_count} failed"
+    if skipped_count:
+        quality_line += f" / {skipped_count} skipped"
+    lines.append(quality_line)
     if failures:
         lines.append(f"- **Data Source Failures:** {len(failures)}")
     else:

@@ -1,93 +1,24 @@
 {
   "watchlist": [
     {
-      "symbol": "BABA.US",
-      "name": "阿里巴巴",
-      "name_en": "Alibaba",
+      "symbol": "MSFT.US",
+      "name": "微软",
+      "name_en": "Microsoft",
       "sector": "Technology",
-      "description": "中国电商和云计算巨头，AI布局领先",
+      "description": "Azure和企业软件平台，用于验证AI收入与资本开支回报",
       "priority": 1,
-      "moat_override": {
-        "moat_width": "Narrow",
-        "moat_score": 5.5,
-        "moat_premium": 0.10,
-        "moat_types": ["network_effect", "cost_advantage"],
-        "notes": "平台网络效应+规模优势，但竞争加剧+政策风险"
-      }
-    },
-    {
-      "symbol": "NVDA.US",
-      "name": "英伟达",
-      "name_en": "NVIDIA",
-      "sector": "Technology",
-      "description": "AI芯片龙头，数据中心业务强劲",
-      "priority": 1,
+      "longbridge_group": "us",
+      "is_pinned": true,
       "moat_override": {
         "moat_width": "Wide",
-        "moat_score": 8.5,
-        "moat_premium": 0.20,
-        "moat_types": ["technology_moat", "network_effect", "switching_cost"],
-        "notes": "CUDA生态锁定+算力垄断+客户转换成本极高"
-      }
-    },
-    {
-      "symbol": "TSLA.US",
-      "name": "特斯拉",
-      "name_en": "Tesla",
-      "sector": "Consumer Discretionary",
-      "description": "电动车龙头，自动驾驶和储能业务",
-      "priority": 1,
-      "moat_override": {
-        "moat_width": "Narrow",
-        "moat_score": 5.0,
-        "moat_premium": 0.08,
-        "moat_types": ["brand_moat", "technology_moat"],
-        "notes": "品牌+技术领先，但竞争加剧+CEO风险"
-      }
-    },
-    {
-      "symbol": "AAPL.US",
-      "name": "苹果",
-      "name_en": "Apple",
-      "sector": "Technology",
-      "description": "消费电子巨头，生态系统完善",
-      "priority": 2,
-      "moat_override": {
-        "moat_width": "Wide",
-        "moat_score": 9.0,
-        "moat_premium": 0.20,
-        "moat_types": ["brand_moat", "switching_cost", "network_effect"],
-        "notes": "品牌溢价极高+iOS生态锁定+App Store网络效应"
-      }
-    },
-    {
-      "symbol": "CEG.US",
-      "name": "星座能源",
-      "name_en": "Constellation Energy",
-      "sector": "Utilities",
-      "description": "核能发电公司，AI数据中心供电合作",
-      "priority": 2,
-      "moat_override": {
-        "moat_width": "Narrow",
-        "moat_score": 6.5,
-        "moat_premium": 0.15,
-        "moat_types": ["regulatory_license", "cost_advantage"],
-        "notes": "核能牌照稀缺+AI供电需求增长，但公用事业周期性"
-      }
-    },
-    {
-      "symbol": "COIN.US",
-      "name": "Coinbase",
-      "name_en": "Coinbase",
-      "sector": "Financials",
-      "description": "加密货币交易所，受益于加密市场回暖",
-      "priority": 2,
-      "moat_override": {
-        "moat_width": "Minimal",
-        "moat_score": 3.5,
-        "moat_premium": 0.05,
-        "moat_types": ["network_effect", "regulatory_license"],
-        "notes": "合规牌照+用户网络，但周期性极强+竞争激烈"
+        "moat_score": 9.5,
+        "moat_premium": 0.2,
+        "moat_types": [
+          "switching_cost",
+          "network_effect",
+          "brand_moat"
+        ],
+        "notes": "企业生态锁定+Azure+Office，但需验证AI收入、利用率和FCF after CapEx"
       }
     },
     {
@@ -95,14 +26,266 @@
       "name": "杜克能源",
       "name_en": "Duke Energy",
       "sector": "Utilities",
-      "description": "美国大型电力公司，稳定分红",
-      "priority": 2,
+      "description": "美国受监管公用事业，作为组合防御和现金流仓位",
+      "priority": 1,
+      "longbridge_group": "us",
+      "is_pinned": true,
       "moat_override": {
         "moat_width": "Wide",
         "moat_score": 7.5,
         "moat_premium": 0.15,
-        "moat_types": ["regulatory_license", "switching_cost"],
-        "notes": "监管垄断+客户无法转换，极稳定的现金流和高分红"
+        "moat_types": [
+          "regulatory_license",
+          "switching_cost"
+        ],
+        "notes": "监管垄断+稳定现金流，但当前持仓集中度过高且增长较低"
+      }
+    },
+    {
+      "symbol": "BABA.US",
+      "name": "阿里巴巴",
+      "name_en": "Alibaba",
+      "sector": "Consumer Cyclical",
+      "description": "中国电商、云计算和AI应用平台，用于跟踪消费复苏、云业务和股东回报",
+      "priority": 1,
+      "longbridge_group": "us",
+      "is_pinned": true,
+      "moat_override": {
+        "moat_width": "Wide",
+        "moat_score": 7.5,
+        "moat_premium": 0.15,
+        "moat_types": [
+          "network_effect",
+          "brand_moat",
+          "cost_advantage"
+        ],
+        "notes": "电商生态、物流和云基础设施具备规模优势，但需持续跟踪竞争、监管和资本回报"
+      }
+    },
+    {
+      "symbol": "TSLA.US",
+      "name": "特斯拉",
+      "name_en": "Tesla",
+      "sector": "Consumer Cyclical",
+      "description": "电动车、储能、自动驾驶和机器人平台，用于跟踪销量、毛利率和AI期权价值",
+      "priority": 1,
+      "longbridge_group": "us",
+      "is_pinned": true,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 6.5,
+        "moat_premium": 0.12,
+        "moat_types": [
+          "brand_moat",
+          "cost_advantage",
+          "technology_moat"
+        ],
+        "notes": "品牌、制造规模和软件能力仍有优势，但竞争、价格战和估值波动较高"
+      }
+    },
+    {
+      "symbol": "COIN.US",
+      "name": "Coinbase",
+      "name_en": "Coinbase",
+      "sector": "Financial Services",
+      "description": "加密资产交易和托管平台，用于跟踪风险偏好、监管环境和链上资产周期",
+      "priority": 1,
+      "longbridge_group": "us",
+      "is_pinned": true,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 6.0,
+        "moat_premium": 0.1,
+        "moat_types": [
+          "brand_moat",
+          "regulatory_license",
+          "network_effect"
+        ],
+        "notes": "合规入口和托管品牌有价值，但收入强周期、监管和费率压缩风险较高"
+      }
+    },
+    {
+      "symbol": "SPCX.US",
+      "name": "SpaceX",
+      "name_en": "SpaceX",
+      "sector": "Private / Other",
+      "description": "Longbridge 上的 SpaceX 相关可交易标的（主题/代理口径），用于跟踪航天发射、星链与卫星互联网叙事；非未上市 SpaceX 母公司直接股权",
+      "priority": 1,
+      "longbridge_group": "us",
+      "is_pinned": true,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 4.0,
+        "moat_premium": 0.05,
+        "moat_types": [
+          "technology_moat",
+          "cost_advantage"
+        ],
+        "notes": "主题代理口径：可走常规技术/风险/因子与可用估值流程，但仍需重点检查流动性、折溢价、结构风险，以及 RKLB/ASTS 板块情绪。默认仍作卫星仓，不因白名单自动升为核心重仓。"
+      },
+      "valuation_enabled": true,
+      "related_symbols": [
+        "RKLB.US",
+        "ASTS.US",
+        "SPCE.US"
+      ],
+      "notes": "用户 2026-07-26 要求买入并加入分析白名单；valuation_enabled=true，之后每次 watchlist / valuation harness 都完整分析。标的为 Longbridge 上 SpaceX 相关可交易代理，非未上市 SpaceX 母公司直接股权。",
+      "analysis_whitelist": true
+    },
+    {
+      "symbol": "SMCI.US",
+      "name": "超微电脑",
+      "name_en": "Super Micro Computer",
+      "sector": "Technology",
+      "description": "AI服务器和液冷整机供应商，用于跟踪GPU服务器交付、毛利率和营运资本",
+      "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 5.5,
+        "moat_premium": 0.08,
+        "moat_types": [
+          "cost_advantage",
+          "switching_cost"
+        ],
+        "notes": "交付速度和供应链整合有优势，但毛利、审计、客户集中和库存周期风险需要折价"
+      }
+    },
+    {
+      "symbol": "SBSW.US",
+      "name": "Sibanye Stillwater",
+      "name_en": "Sibanye Stillwater",
+      "sector": "Basic Materials",
+      "description": "贵金属和铂族金属矿商，用于跟踪资源周期、金属价格和资产负债表压力",
+      "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
+      "moat_override": {
+        "moat_width": "Minimal",
+        "moat_score": 3.5,
+        "moat_premium": 0.0,
+        "moat_types": [
+          "cost_advantage"
+        ],
+        "notes": "资源储量有周期价值，但矿业运营、商品价格和政治风险使护城河较弱"
+      }
+    },
+    {
+      "symbol": "DRAM.US",
+      "name": "Roundhill Memory ETF",
+      "name_en": "Roundhill Memory ETF",
+      "sector": "Technology ETF",
+      "description": "存储主题ETF，用于跟踪DRAM、HBM和NAND产业周期",
+      "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
+      "valuation_enabled": false,
+      "moat_override": {
+        "moat_width": "N/A",
+        "moat_score": 0.0,
+        "moat_premium": 0.0,
+        "moat_types": [],
+        "notes": "ETF不使用企业护城河溢价；按持仓结构、主题景气度、费用率和流动性评估"
+      }
+    },
+    {
+      "symbol": "BE.US",
+      "name": "Bloom Energy",
+      "name_en": "Bloom Energy",
+      "sector": "Industrials",
+      "description": "燃料电池和分布式电力平台，用于跟踪数据中心供电、订单和盈利兑现",
+      "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
+      "moat_override": {
+        "moat_width": "Minimal",
+        "moat_score": 4.0,
+        "moat_premium": 0.0,
+        "moat_types": [
+          "technology_moat"
+        ],
+        "notes": "分布式电力叙事受益于数据中心需求，但商业模式、毛利和现金流仍需验证"
+      }
+    },
+    {
+      "symbol": "2513.HK",
+      "name": "知行汽车科技",
+      "name_en": "KNOWLEDGE ATLAS",
+      "sector": "Consumer Cyclical",
+      "description": "港股智能驾驶相关标的，用于跟踪辅助驾驶渗透和车企客户订单",
+      "priority": 2,
+      "longbridge_group": "hk",
+      "is_pinned": false,
+      "moat_override": {
+        "moat_width": "Minimal",
+        "moat_score": 4.0,
+        "moat_premium": 0.0,
+        "moat_types": [
+          "technology_moat",
+          "switching_cost"
+        ],
+        "notes": "智能驾驶供应链具备技术壁垒，但规模、客户集中、盈利和港股流动性风险较高"
+      }
+    },
+    {
+      "symbol": "SNDK.US",
+      "name": "闪迪",
+      "name_en": "Sandisk",
+      "sector": "Technology",
+      "description": "NAND和数据存储供应商，用于跟踪存储价格与供需周期",
+      "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 5.0,
+        "moat_premium": 0.08,
+        "moat_types": [
+          "technology_moat",
+          "cost_advantage"
+        ],
+        "notes": "受益于全球存储需求，但波动、扩产、库存和峰值盈利风险很高"
+      }
+    },
+    {
+      "symbol": "CEG.US",
+      "name": "星座能源",
+      "name_en": "Constellation Energy",
+      "sector": "Utilities",
+      "description": "核能发电和数据中心供电卡口，跟踪已签合同与项目回报",
+      "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 6.5,
+        "moat_premium": 0.15,
+        "moat_types": [
+          "regulatory_license",
+          "cost_advantage"
+        ],
+        "notes": "核能牌照和基荷电力稀缺，但估值、监管和项目执行风险较高"
+      }
+    },
+    {
+      "symbol": "MRVL.US",
+      "name": "Marvell Tech",
+      "name_en": "Marvell Technology",
+      "sector": "Technology",
+      "description": "数据中心网络、定制硅和高速互连供应商，用于跟踪AI网络升级",
+      "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
+      "moat_override": {
+        "moat_width": "Narrow",
+        "moat_score": 6.0,
+        "moat_premium": 0.1,
+        "moat_types": [
+          "technology_moat",
+          "switching_cost"
+        ],
+        "notes": "高速互连和定制芯片具备客户粘性，但竞争、客户集中和估值弹性较高"
       }
     },
     {
@@ -110,71 +293,155 @@
       "name": "谷歌",
       "name_en": "Alphabet",
       "sector": "Technology",
-      "description": "搜索引擎和云计算龙头，AI研发领先",
+      "description": "搜索、广告和云计算龙头，用于跟踪AI商业化与平台回报",
       "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
       "moat_override": {
         "moat_width": "Wide",
         "moat_score": 8.0,
         "moat_premium": 0.18,
-        "moat_types": ["network_effect", "brand_moat", "technology_moat"],
-        "notes": "搜索垄断+广告网络效应+云+AI多轮驱动"
+        "moat_types": [
+          "network_effect",
+          "brand_moat",
+          "technology_moat"
+        ],
+        "notes": "搜索和广告网络效应+云+AI分发，但需验证AI收入和CapEx回报"
       }
     },
     {
-      "symbol": "HOOD.US",
-      "name": "Robinhood",
-      "name_en": "Robinhood",
-      "sector": "Financials",
-      "description": "互联网券商，加密货币和股票交易平台",
+      "symbol": "QQQ.US",
+      "name": "纳斯达克100 ETF",
+      "name_en": "Invesco QQQ Trust",
+      "sector": "Broad Market ETF",
+      "description": "科技和成长股核心宽基，用于跟踪AI风险偏好和纳指趋势",
       "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
       "moat_override": {
-        "moat_width": "Minimal",
-        "moat_score": 3.0,
-        "moat_premium": 0.03,
-        "moat_types": ["network_effect"],
-        "notes": "用户增长快但转换成本低，周期性强"
+        "moat_width": "N/A",
+        "moat_score": 0.0,
+        "moat_premium": 0.0,
+        "moat_types": [],
+        "notes": "ETF不使用企业护城河溢价；按成分股、估值、流动性和市场环境评估"
       }
     },
     {
-      "symbol": "MSFT.US",
-      "name": "微软",
-      "name_en": "Microsoft",
+      "symbol": "VIXM.US",
+      "name": "中期期VIX期货ETF",
+      "name_en": "Pro Vix Mid Fut",
+      "sector": "Volatility ETF",
+      "description": "波动率代理工具，用于观察风险压力和组合保护成本",
+      "priority": 3,
+      "longbridge_group": "us",
+      "is_pinned": false,
+      "valuation_enabled": false,
+      "moat_override": {
+        "moat_width": "N/A",
+        "moat_score": 0.0,
+        "moat_premium": 0.0,
+        "moat_types": [],
+        "notes": "波动率ETF不适合企业护城河估值；主要作为风险温度计和对冲观察项"
+      }
+    },
+    {
+      "symbol": ".DJI.US",
+      "name": "道琼斯工业平均指数",
+      "name_en": "Dow Jones Industrial Average",
+      "sector": "Index",
+      "description": "美股蓝筹指数观察项，用于辅助判断大盘广度和风险偏好",
+      "priority": 3,
+      "longbridge_group": "us",
+      "is_pinned": false,
+      "valuation_enabled": false,
+      "moat_override": {
+        "moat_width": "N/A",
+        "moat_score": 0.0,
+        "moat_premium": 0.0,
+        "moat_types": [],
+        "notes": "指数不使用企业护城河溢价；用于市场环境观察，不作为个股估值对象"
+      }
+    },
+    {
+      "symbol": ".SPX.US",
+      "name": "标普500指数",
+      "name_en": "S&P 500",
+      "sector": "Index",
+      "description": "美股核心大盘指数观察项，用于辅助判断趋势、估值和风险偏好",
+      "priority": 3,
+      "longbridge_group": "us",
+      "is_pinned": false,
+      "valuation_enabled": false,
+      "moat_override": {
+        "moat_width": "N/A",
+        "moat_score": 0.0,
+        "moat_premium": 0.0,
+        "moat_types": [],
+        "notes": "指数不使用企业护城河溢价；用于市场环境观察，不作为个股估值对象"
+      }
+    },
+    {
+      "symbol": "AAPL.US",
+      "name": "苹果",
+      "name_en": "Apple",
       "sector": "Technology",
-      "description": "云计算和软件巨头，AI战略布局完善",
+      "description": "消费电子和服务生态龙头，用于跟踪硬件周期、服务收入和端侧AI",
       "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
       "moat_override": {
         "moat_width": "Wide",
-        "moat_score": 9.5,
-        "moat_premium": 0.20,
-        "moat_types": ["switching_cost", "network_effect", "brand_moat"],
-        "notes": "企业级生态锁定+Azure云+Office垄断+AI布局领先"
+        "moat_score": 9.0,
+        "moat_premium": 0.18,
+        "moat_types": [
+          "brand_moat",
+          "switching_cost",
+          "network_effect"
+        ],
+        "notes": "硬件+服务生态锁定强，但需跟踪换机周期、端侧AI和估值消化"
       }
     },
     {
-      "symbol": "PLTR.US",
-      "name": "Palantir",
-      "name_en": "Palantir",
+      "symbol": "NVDA.US",
+      "name": "英伟达",
+      "name_en": "NVIDIA",
       "sector": "Technology",
-      "description": "大数据分析公司，AI平台增长强劲",
+      "description": "AI算力和加速器龙头，直接受益于云厂商资本开支",
       "priority": 2,
+      "longbridge_group": "us",
+      "is_pinned": false,
       "moat_override": {
-        "moat_width": "Narrow",
-        "moat_score": 5.5,
-        "moat_premium": 0.10,
-        "moat_types": ["switching_cost", "technology_moat"],
-        "notes": "政府合同锁定+数据整合壁垒，但商业端竞争加剧"
+        "moat_width": "Wide",
+        "moat_score": 8.5,
+        "moat_premium": 0.2,
+        "moat_types": [
+          "technology_moat",
+          "network_effect",
+          "switching_cost"
+        ],
+        "notes": "CUDA生态锁定+算力龙头，但估值、客户集中和自研芯片是主要风险"
       }
     }
   ],
   "metadata": {
     "created_at": "2026-04-20",
-    "updated_at": "2026-05-12",
-    "total_count": 11,
+    "updated_at": "2026-07-26",
+    "source": "longbridge watchlist --format json",
+    "source_group": "all",
+    "total_count": 21,
+    "pinned_count": 6,
     "sectors": {
-      "Technology": 6,
-      "Consumer Discretionary": 1,
+      "Technology": 7,
       "Utilities": 2,
-      "Financials": 2
+      "Consumer Cyclical": 3,
+      "Financial Services": 1,
+      "Private / Other": 1,
+      "Basic Materials": 1,
+      "Technology ETF": 1,
+      "Industrials": 1,
+      "Broad Market ETF": 1,
+      "Volatility ETF": 1,
+      "Index": 2
     }
   }
 }

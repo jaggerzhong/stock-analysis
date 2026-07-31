@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from analysis.analyze import StockAnalyzer
 from analysis.engine import ValuationMetricsCalculator
-from watchlist_utils import load_watchlist
+from watchlist_utils import load_valuation_disabled_symbols, load_watchlist
 
 
 # Load industry configuration
@@ -686,11 +686,15 @@ def generate_value_assessment(date_str: str, watchlist: list) -> dict:
     """
     analyzer = StockAnalyzer()
     assessments = []
+    valuation_disabled = load_valuation_disabled_symbols()
 
     # Load industry configuration
     industry_config = load_industry_config()
 
     for symbol in watchlist:
+        if symbol.upper() in valuation_disabled:
+            print(f"  ⏭️  Skipping {symbol}: valuation disabled for ETF/index/watch-only entry")
+            continue
         try:
             analysis = analyzer.analyze_symbol(symbol, include_market=False)
 

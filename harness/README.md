@@ -23,7 +23,7 @@ This harness system implements continuous evaluation and improvement of stock an
 ### Run Full Harness
 
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis/harness
+cd "$HOME/.agents/skills/stock-analysis/harness"
 
 # Run all components
 ./harness-run.sh
@@ -252,13 +252,13 @@ crontab -e
 
 # Add these lines:
 # Daily summary at 9:40 AM Beijing Time, Tuesday-Saturday
-40 9 * * 2-6 cd /Users/Jagger/.agents/skills/stock-analysis/harness && ./harness-run.sh --daily
+40 9 * * 2-6 cd "$HOME/.agents/skills/stock-analysis/harness" && ./harness-run.sh --daily
 
 # Optional backtest after daily artifacts exist
-0 10 * * 2-6 cd /Users/Jagger/.agents/skills/stock-analysis/harness && ./harness-run.sh --backtest
+0 10 * * 2-6 cd "$HOME/.agents/skills/stock-analysis/harness" && ./harness-run.sh --backtest
 
 # Optional weekly adjustment
-30 10 * * 5 cd /Users/Jagger/.agents/skills/stock-analysis/harness && ./harness-run.sh --adjust
+30 10 * * 5 cd "$HOME/.agents/skills/stock-analysis/harness" && ./harness-run.sh --adjust
 ```
 
 ## 📊 Monitoring (Planned)

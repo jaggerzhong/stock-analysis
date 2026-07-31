@@ -138,7 +138,7 @@
 
 ### Run Tests
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis
+cd "$HOME/.agents/skills/stock-analysis"
 pytest harness/tests/unit/ -v
 ```
 

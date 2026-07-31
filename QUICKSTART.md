@@ -9,7 +9,7 @@
 ## 🚀 快速恢复工作
 
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis
+cd "$HOME/.agents/skills/stock-analysis"
 bash harness/resume.sh
 ```
 

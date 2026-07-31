@@ -21,8 +21,13 @@ from watchlist_utils import load_watchlist_full  # noqa: E402
 
 
 AI_INFRA_LAYERS = {
+    "storage/memory": ["hbm", "dram", "nand", "memory", "storage", "存储", "内存"],
+    "optical/networking": [
+        "optical", "photonics", "networking", "ethernet", "switch", "800g", "1.6t",
+        "光通信", "光模块", "光器件", "互连", "交换机", "高速网络", "数据中心网络",
+    ],
     "compute": ["gpu", "chip", "semiconductor", "ai芯片", "算力", "英伟达", "nvidia"],
-    "cloud/platform": ["cloud", "azure", "云", "平台", "software", "软件", "data", "数据"],
+    "cloud/platform": ["cloud", "azure", "云", "software", "软件"],
     "power": ["power", "energy", "electric", "utility", "nuclear", "电力", "能源", "核能", "公用事业"],
     "ai application": ["ai", "agent", "autonomous", "自动驾驶", "大模型", "analytics"],
     "financial rails": ["crypto", "exchange", "broker", "交易所", "券商", "加密"],
@@ -83,6 +88,9 @@ def text_blob(candidate: Candidate, thesis: str = "", include_thesis: bool = Fal
 
 
 def infer_layer(candidate: Candidate, thesis: str = "") -> str:
+    if candidate.sector == "Broad Market ETF":
+        return "unclassified architecture node"
+
     blob = text_blob(candidate, thesis)
     matches = []
     for layer, terms in AI_INFRA_LAYERS.items():
@@ -99,7 +107,9 @@ def score_candidate(candidate: Candidate, thesis: str = "") -> Dict:
     blob = text_blob(candidate, thesis)
     layer = infer_layer(candidate, thesis)
 
-    architecture = 4 if layer in {"compute", "cloud/platform", "power", "ai application"} else 2
+    architecture = 4 if layer in {
+        "storage/memory", "optical/networking", "compute", "cloud/platform", "power", "ai application"
+    } else 2
     if "unclassified" in layer:
         architecture = 1
 

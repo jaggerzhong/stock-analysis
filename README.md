@@ -493,7 +493,7 @@ v2.0版本新增完整的量化分析引擎，提供专业级的风险、估值�
 ### 安装
 
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis/analysis
+cd "$HOME/.agents/skills/stock-analysis/analysis"
 pip install -r requirements.txt
 ```
 

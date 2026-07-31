@@ -189,6 +189,18 @@ class LongbridgeDataFetcher:
         return {}
 
     @staticmethod
+    def _quotes_list_to_map(quotes_list: List[Dict]) -> Dict[str, Dict]:
+        """Normalize a list of quote dicts into {symbol: quote_dict}."""
+        result: Dict[str, Dict] = {}
+        for q in quotes_list:
+            if not isinstance(q, dict):
+                continue
+            sym = q.get('symbol', '')
+            if sym:
+                result[sym] = q
+        return result
+
+    @staticmethod
     def fetch_batch_quotes(symbols: List[str], cache: Optional[DataCache] = None) -> Dict[str, Dict]:
         """Fetch quotes for multiple symbols in one call. Returns {symbol: quote_dict}."""
         if not symbols:
@@ -199,9 +211,15 @@ class LongbridgeDataFetcher:
             cached = cache.get('batch_quote', cache_key)
             if cached:
                 try:
-                    return json.loads(cached)
+                    parsed = json.loads(cached)
                 except json.JSONDecodeError:
-                    pass
+                    parsed = None
+                if isinstance(parsed, dict):
+                    # Accept only symbol->quote maps; reject accidental raw list dumps.
+                    if all(isinstance(v, dict) for v in parsed.values()):
+                        return parsed
+                elif isinstance(parsed, list):
+                    return LongbridgeDataFetcher._quotes_list_to_map(parsed)
 
         output = LongbridgeDataFetcher.run_command([
             'longbridge', 'quote'] + symbols + ['--format', 'json'
@@ -211,13 +229,7 @@ class LongbridgeDataFetcher:
             cache.set('batch_quote', cache_key, output)
 
         quotes_list = LongbridgeDataFetcher.parse_batch_quotes(output or '')
-        result = {}
-        for q in quotes_list:
-            sym = q.get('symbol', '')
-            if sym:
-                result[sym] = q
-
-        return result
+        return LongbridgeDataFetcher._quotes_list_to_map(quotes_list)
 
     @staticmethod
     def fetch_kline(symbol: str, days: int = 200, period: str = 'day', cache: Optional[DataCache] = None) -> List[Dict]:

@@ -1,6 +1,6 @@
 ---
 name: stock-analysis
-description: 'Comprehensive stock portfolio analyzer with watchlist. TRIGGER on ANY of: (1) watchlist analysis: "分析自选股" / "analyze watchlist" / "my watchlist"; (2) portfolio analysis: "分析我的持仓" / "portfolio analysis" / "stock review"; (3) market sentiment: "大盘情绪" / "market outlook"; (4) technical levels: "缺口分析" / "support/resistance levels"; (5) position sizing: "仓位建议" / "should I buy/sell". Watchlist is defined in references/watchlist.json. Uses Longbridge CLI, multi-factor market regime, valuation, moat, value-trap, technical, and position management frameworks.'
+description: 'Comprehensive stock portfolio analyzer with watchlist. TRIGGER on ANY of: (1) watchlist analysis: "分析自选股" / "analyze watchlist" / "my watchlist"; (2) portfolio analysis: "分析我的持仓" / "portfolio analysis" / "stock review"; (3) market sentiment: "大盘情绪" / "market outlook"; (4) technical levels: "缺口分析" / "support/resistance levels"; (5) position sizing: "仓位建议" / "should I buy/sell"; (6) AI infrastructure, capital-expenditure cycles, storage, optical networking, power, or supply bottlenecks. Watchlist is defined in references/watchlist.json.'
 ---
 
 # Stock Portfolio Analyzer
@@ -22,7 +22,7 @@ Default philosophy: value-aware, risk-first investing.
 Use the Python entrypoint when possible. It keeps the watchlist source, Longbridge fetches, scoring, data-quality gate, and report format aligned.
 
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis
+cd "$HOME/.agents/skills/stock-analysis"
 
 # Analyze the authoritative watchlist from references/watchlist.json
 python3 analysis/analyze.py --watchlist
@@ -40,7 +40,7 @@ python3 analysis/analyze.py AAPL.US --format json -o analysis.json
 Use the isolated Serenity-style chokepoint overlay when the user asks about architecture shifts, AI infrastructure, supply-chain bottlenecks, thematic re-rating, or whether the market is misclassifying a company:
 
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis
+cd "$HOME/.agents/skills/stock-analysis"
 
 # Score the full watchlist through the architecture/chokepoint lens
 python3 analysis/serenity_chokepoint.py --watchlist
@@ -51,6 +51,8 @@ python3 analysis/serenity_chokepoint.py NVDA.US CEG.US --thesis "AI infrastructu
 # JSON output for downstream review
 python3 analysis/serenity_chokepoint.py NVDA.US --format json
 ```
+
+For AI infrastructure or capital-expenditure cycle requests, read `references/ai-infrastructure-cycle.md` before interpreting the overlay. Use it to distinguish architecture relevance from cycle timing, revenue capture, supply response, crowding, and execution risk.
 
 Quick data commands are allowed for lightweight user questions:
 
@@ -76,7 +78,7 @@ For watchlist, portfolio, or buy/sell requests, follow this order:
 
 For architecture/chokepoint requests, run this overlay before the normal workflow:
 
-1. Architecture shift: identify the stack layer: compute, cloud/platform, power, AI application, financial rails, consumer/device, or unclassified.
+1. Architecture shift: identify the stack layer: storage/memory, optical/networking, compute, cloud/platform, power, AI application, financial rails, consumer/device, or unclassified.
 2. Chokepoint test: supply tightness, substitution difficulty, and whether the market still misunderstands the node.
 3. Evidence tiering: confirmed, reported, ecosystem mapping, or inference. Never promote inference to confirmed fact.
 4. Category correction: state whether the company is being priced as the wrong type of business.
@@ -85,6 +87,24 @@ For architecture/chokepoint requests, run this overlay before the normal workflo
 7. Negative screen: dilution, float unlocks, weak contracts, logo-only partnerships, or retail-exit financing.
 8. Separate `research_priority` from `investment_confidence`. Low evidence can raise research priority, but it must not become high investment confidence.
 9. Then run `analysis/analyze.py` for market regime, valuation, technical timing, and position sizing. The chokepoint overlay can raise research priority, but it does not override data-quality gates or risk limits.
+
+For AI infrastructure and capital-expenditure cycle requests, add these gates after the chokepoint overlay and before the normal workflow:
+
+1. Causal chain: map end usage and monetization to hyperscaler CapEx, supplier orders, shipments, revenue, margins, and FCF.
+2. Cycle state: classify CapEx and demand as accelerating, digesting, decelerating, or contracting.
+3. Revenue capture: distinguish direct infrastructure payees from platform payers and downstream applications; do not assume the same timing or valuation method.
+4. Confirmation stack: require evidence beyond CapEx, including orders/backlog, pricing, inventory, utilization, gross margin, and FCF.
+5. Supply response: compare qualified capacity and delivery timing with demand; announced capacity alone is not available supply.
+6. Crowding: check ETF/ADR premiums, leverage, flows, concentration, positioning, and whether price has outrun the optimistic valuation case.
+7. Valuation: use cycle-normalized earnings for cyclical suppliers and look-through valuation for ETFs; do not treat a theme label as valuation evidence.
+8. Execution: separate new money from existing holdings, use staged entries, rebalance oversized winners, and define fundamental trim/exit triggers before acting.
+
+Hard gates:
+
+- CapEx is necessary but not sufficient. Never issue an aggressive buy-style action from CapEx growth alone.
+- Do not promote a theme when orders, backlog, margins, inventory, or FCF contradict the thesis.
+- Do not treat a single price decline, headline, or one-quarter CapEx change as a thesis break; require corroborating independent indicators.
+- The AI cycle overlay can change research priority and timing, but it cannot bypass the normal data-quality, valuation, market-regime, or portfolio-risk gates.
 
 ## Recommendation Wording
 
@@ -175,6 +195,7 @@ Use this structure for user-facing reports:
 - Market regime and position sizing: `references/market-regime.md`, `references/position-management.md`.
 - Value framework: `references/moat-analysis.md`, `references/roic-analysis.md`, `references/value-trap-detection.md`, `references/value-zone.md`.
 - Architecture/chokepoint overlay: `references/serenity-chokepoint-framework.md`.
+- AI infrastructure and capital-expenditure cycle: `references/ai-infrastructure-cycle.md`.
 - Technical framework: `references/gap-theory.md`, `references/technical-indicators.md`.
 - Quant engine details: `analysis/README.md`, `references/risk-metrics.md`, `references/valuation-metrics.md`, `references/multi-factor-model.md`.
 - Validation and harness: `harness/README.md`, `harness/FINAL_OPTIMIZATION_REPORT.md`.
@@ -182,7 +203,7 @@ Use this structure for user-facing reports:
 ## Daily Harness
 
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis/harness
+cd "$HOME/.agents/skills/stock-analysis/harness"
 ./stock-harness.sh --daily
 ./stock-harness.sh --backtest
 ./stock-harness.sh --adjust

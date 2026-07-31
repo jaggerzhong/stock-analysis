@@ -213,7 +213,7 @@ harness/
 ### 1. 查看当前状态
 
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis
+cd "$HOME/.agents/skills/stock-analysis"
 cat harness/PROGRESS.md
 ```
 
@@ -405,7 +405,7 @@ git commit -m "feat: add trend confirmation mechanism"
 
 **下次启动时，运行:**
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis
+cd "$HOME/.agents/skills/stock-analysis"
 cat harness/PROGRESS.md  # 查看本文件
 pytest harness/tests/unit/ -v  # 验证测试
 ```

@@ -154,7 +154,7 @@
 
 无需手动操作。安装依赖：
 ```bash
-cd /Users/Jagger/.agents/skills/stock-analysis
+cd "$HOME/.agents/skills/stock-analysis"
 pip install -r analysis/requirements.txt
 ```
 
@@ -249,7 +249,7 @@ report = engine.generate_report(analysis, format='markdown')
 
 1. **安装依赖**
    ```bash
-   cd /Users/Jagger/.agents/skills/stock-analysis/analysis
+   cd "$HOME/.agents/skills/stock-analysis/analysis"
    pip install -r requirements.txt
    ```
 
