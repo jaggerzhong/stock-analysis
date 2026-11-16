@@ -1,6 +1,6 @@
 ---
 name: stock-analysis
-description: 'Comprehensive stock portfolio analyzer with watchlist. TRIGGER on ANY of: (1) watchlist analysis: "分析自选股" / "analyze watchlist" / "my watchlist"; (2) portfolio analysis: "分析我的持仓" / "portfolio analysis" / "stock review"; (3) market sentiment: "大盘情绪" / "market outlook"; (4) technical levels: "缺口分析" / "support/resistance levels"; (5) position sizing: "仓位建议" / "should I buy/sell"; (6) AI infrastructure, capital-expenditure cycles, storage, optical networking, power, or supply bottlenecks. Watchlist is defined in references/watchlist.json.'
+description: 'Comprehensive stock portfolio analyzer with watchlist. TRIGGER on ANY of: (1) watchlist analysis: "分析自选股" / "analyze watchlist" / "my watchlist"; (2) portfolio analysis: "分析我的持仓" / "portfolio analysis" / "stock review"; (3) market sentiment: "大盘情绪" / "market outlook"; (4) stock or crypto technical levels: "缺口分析" / "压力位" / "最大阻力" / "支撑位" / "support/resistance levels"; (5) position sizing: "仓位建议" / "should I buy/sell"; (6) AI infrastructure, capital-expenditure cycles, storage, optical networking, power, or supply bottlenecks. Watchlist is defined in references/watchlist.json.'
 ---
 
 # Stock Portfolio Analyzer
@@ -64,6 +64,8 @@ python3 -c "from watchlist_utils import load_watchlist; print(' '.join(load_watc
 ```
 
 ## Required Workflow
+
+For a focused stock or crypto support/resistance request, read [references/support-resistance.md](references/support-resistance.md). State the horizon and data cutoff; combine multi-window volume profiles with swings, former platforms and completed-bar moving averages. Distinguish nearest resistance from the major zone within the stated window. Use `scripts/volume_profile.py` for reproducible candle-based estimates and sensitivity checks. Historical volume is not current holdings or guaranteed selling pressure; technical zones are separate from intrinsic valuation. A levels-only request does not require account access or a full equity valuation run.
 
 For watchlist, portfolio, or buy/sell requests, follow this order:
 
@@ -196,7 +198,7 @@ Use this structure for user-facing reports:
 - Value framework: `references/moat-analysis.md`, `references/roic-analysis.md`, `references/value-trap-detection.md`, `references/value-zone.md`.
 - Architecture/chokepoint overlay: `references/serenity-chokepoint-framework.md`.
 - AI infrastructure and capital-expenditure cycle: `references/ai-infrastructure-cycle.md`.
-- Technical framework: `references/gap-theory.md`, `references/technical-indicators.md`.
+- Technical framework: `references/support-resistance.md` (stock/crypto zones and volume-profile calculation), `references/gap-theory.md`, `references/technical-indicators.md`.
 - Quant engine details: `analysis/README.md`, `references/risk-metrics.md`, `references/valuation-metrics.md`, `references/multi-factor-model.md`.
 - Validation and harness: `harness/README.md`, `harness/FINAL_OPTIMIZATION_REPORT.md`.
 
